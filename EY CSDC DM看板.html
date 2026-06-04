@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Management 看板 · 底稿交付中心</title>
+<!-- 优先用同目录下的本地库（OneDrive/内网可用）；本地没有时回退到 CDN -->
+<script>window.__libfail=[];</script>
+<script src="xlsx.full.min.js" onerror="window.__libfail.push('xlsx-local')"></script>
+<script>if(typeof XLSX==='undefined'){document.write('<script src=\"https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js\"><\/script>');}</script>
+<script src="chart.umd.min.js" onerror="window.__libfail.push('chart-local')"></script>
+<script>if(typeof Chart==='undefined'){document.write('<script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js\"><\/script>');}</script>
+<!-- 共享数据（由维护者生成并放到同目录）。不存在时静默忽略 -->
+<script src="data.js" onerror="window.__noData=true"></script>
+<style>
+:root{--ey-black:#2e2e38;--ey-yellow:#ffe600;--ey-gray:#f3f3f5;--green:#2db84d;--red:#e0383e;--orange:#f5a623;--blue:#4a90d9;--purple:#8e6fd6;--border:#e3e3e8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Microsoft YaHei","Segoe UI",sans-serif;background:var(--ey-gray);color:var(--ey-black);}
+header{background:var(--ey-black);color:#fff;padding:10px 24px;display:flex;align-items:center;gap:14px;}
+header .logo{background:var(--ey-yellow);color:var(--ey-black);font-weight:800;padding:4px 10px;border-radius:3px;font-size:18px;}
+header h1{font-size:17px;font-weight:600;}
+header .sub{font-size:12px;color:#bdbdc7;}
+.toolbar{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;}
+.toolbar button{background:var(--ey-yellow);color:var(--ey-black);border:none;padding:8px 14px;border-radius:4px;font-weight:600;cursor:pointer;}
+.toolbar button.ghost{background:#4a4a55;color:#fff;}
+.toolbar button:hover{filter:brightness(.95);}
+.banner{padding:11px 24px;font-size:13px;display:none;}.banner.show{display:block;}
+.banner.err{background:#fdecec;color:#a01b22;}.banner.warn{background:#fff6e0;color:#8a5a00;}
+.banner code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px;}
+.tabs{display:flex;gap:2px;background:#fff;padding:0 24px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
+.tabs button{background:none;border:none;padding:13px 20px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:3px solid transparent;}
+.tabs button.active{color:var(--ey-black);border-bottom-color:var(--ey-yellow);}
+.wrap{padding:18px 24px;max-width:1360px;margin:0 auto;}
+.page{display:none;}.page.active{display:block;}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:13px;margin-bottom:18px;}
+.card{background:#fff;border-radius:8px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-top:3px solid var(--ey-yellow);}
+.card .label{font-size:12px;color:#888;margin-bottom:6px;}
+.card .value{font-size:24px;font-weight:700;}.card .value.small{font-size:16px;}
+.card .sub2{font-size:11px;color:#aaa;margin-top:3px;}
+.card.red{border-top-color:var(--red);}.card.green{border-top-color:var(--green);}
+.card.orange{border-top-color:var(--orange);}.card.blue{border-top-color:var(--blue);}.card.purple{border-top-color:var(--purple);}
+.card.lgreen{border-top-color:#7ed957;}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;}
+@media(max-width:980px){.charts{grid-template-columns:1fr;}}
+.chart-box{background:#fff;border-radius:8px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.chart-box h3{font-size:14px;margin-bottom:10px;color:#555;}
+/* 固定高度容器，杜绝图表无限拉伸 / 闪屏 */
+.cc{position:relative;width:100%;height:300px;}
+.cc.sm{height:250px;}
+.cc.tall{height:360px;}
+.panel{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:18px;}
+.panel h3{font-size:14px;margin-bottom:12px;color:#555;}
+.alert{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:6px;margin-bottom:7px;font-size:13px;}
+.alert.crit{background:#fdecec;color:#a01b22;}.alert.warn{background:#fff6e0;color:#8a5a00;}.alert.info{background:#eef4fb;color:#2c5d8f;}
+.alert .tag{font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;color:#fff;white-space:nowrap;}
+.alert.crit .tag{background:var(--red);}.alert.warn .tag{background:var(--orange);}.alert.info .tag{background:var(--blue);}
+.table-box{background:#fff;border-radius:8px;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{padding:9px 9px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+th{background:#fafafa;color:#666;font-weight:600;}
+.group-th{text-align:center;background:#f0f0f3;border-left:1px solid var(--border);}
+tr:hover td{background:#fffbe6;}
+.pill{padding:3px 9px;border-radius:12px;font-size:12px;color:#fff;font-weight:600;}
+.progress{background:#eee;border-radius:10px;height:16px;width:96px;position:relative;overflow:hidden;display:inline-block;vertical-align:middle;}
+.progress>span{position:absolute;left:0;top:0;height:100%;border-radius:10px;}
+.progress>em{position:absolute;width:100%;text-align:center;font-style:normal;font-size:11px;line-height:16px;color:#333;}
+.frac{font-size:12px;color:#555;}
+.over{color:var(--red);font-weight:700;}.under{color:var(--green);font-weight:700;}
+.cell-c{text-align:center;border-left:1px solid #f0f0f3;}
+/* 表头内嵌列筛选 */
+tr.colfilter th{background:#f4f4f6;padding:4px 6px;border-bottom:2px solid var(--border);position:static;}
+tr.colfilter select,tr.colfilter input{width:100%;min-width:64px;max-width:160px;padding:4px 5px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;color:#333;font-weight:400;}
+.tablebar{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.tablebar .btn{background:#eee;border:1px solid var(--border);border-radius:5px;padding:5px 12px;font-size:12px;cursor:pointer;}
+.tablebar .btn:hover{background:#e2e2e6;}
+.filters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
+.filters select,.filters input{padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:#fff;}
+.empty{padding:70px;text-align:center;color:#999;}
+footer{text-align:center;color:#aaa;font-size:12px;padding:18px;}
+.print-title{display:none;}
+/* 导出全部时，屏幕上临时把所有页都铺开（用于让图表 canvas 拿到尺寸后再打印）*/
+body.print-prep .page{display:block!important;}
+@media print{
+  .toolbar,.tabs,#banner,.filters,footer,.hint{display:none!important;}
+  header{background:#fff;color:#000;border-bottom:2px solid var(--ey-yellow);}
+  header .sub{color:#666;}
+  body{background:#fff;}
+  /* 默认（仅打印当前页）*/
+  .page{display:none!important;}.page.active{display:block!important;}
+  /* 一次性导出全部 5 个维度 */
+  body.print-prep .page{display:block!important;page-break-before:always;}
+  body.print-prep .page:first-child{page-break-before:avoid;}
+  body.print-prep .print-title{display:block;font-size:18px;font-weight:700;margin:0 0 12px;padding-bottom:6px;border-bottom:2px solid var(--ey-yellow);}
+  .card,.chart-box,.panel,.table-box{box-shadow:none;border:1px solid #eee;break-inside:avoid;}
+  @page{size:A4 landscape;margin:8mm;}
+}
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">EY</span>
+  <div><h1>Daily Management 看板</h1><div class="sub">CSDC · 底稿 / 函证 / OS / 预算管控</div></div>
+  <div class="toolbar">
+    <span id="lastUpdate" style="color:#bdbdc7"></span>
+    <button id="exportBtn" class="ghost" style="display:none;">⬇ 更新共享数据</button>
+    <button id="pickBtn">选择 Excel 文件</button>
+    <button id="pdfBtn" class="ghost">导出 PDF</button>
+  </div>
+</header>
+<div class="banner" id="banner"></div>
+<input type="file" id="legacyInput" accept=".xlsx,.xlsm,.xls" style="display:none">
+
+<div class="tabs" id="tabs" style="display:none;">
+  <button data-tab="overview" class="active">全览</button>
+  <button data-tab="project">底稿进度</button>
+  <button data-tab="conf">函证进度</button>
+  <button data-tab="os">OS 进度</button>
+  <button data-tab="staff">员工维度</button>
+</div>
+
+<div class="wrap">
+  <div id="emptyState" class="empty">
+    <p style="font-size:15px;">👋 正在尝试加载共享数据…</p>
+    <p style="font-size:13px;margin-top:10px;color:#999;line-height:1.8;">
+      · <b>查看者</b>：本看板会自动读取同目录下的 <code>data.js</code> 显示最新进度，无需任何操作。<br>
+      · <b>维护者（你）</b>：点右上角「选择 Excel 文件」载入台账，再点「⬇ 更新共享数据」生成新的 <code>data.js</code>，覆盖到 OneDrive 文件夹即可让所有人看到更新。</p>
+  </div>
+
+  <!-- 全览 -->
+  <div class="page" id="page-overview">
+    <div class="print-title">全览</div>
+    <div class="cards" id="ov-cards"></div>
+    <div class="cards" id="ov-cards2"></div>
+    <div class="panel"><h3>⚠ 预警事项</h3><div id="ov-alerts"></div></div>
+    <div class="charts">
+      <div class="chart-box"><h3>项目交付状态分布</h3><div class="cc"><canvas id="c-delivery"></canvas></div></div>
+      <div class="chart-box"><h3>项目类型分布</h3><div class="cc"><canvas id="c-type"></canvas></div></div>
+    </div>
+    <div class="charts" style="grid-template-columns:1fr;">
+      <div class="chart-box"><h3>预算 vs 实际工时（超支标红，未超支为绿色）</h3><div class="cc tall"><canvas id="c-budget"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- 底稿进度（原项目维度）-->
+  <div class="page" id="page-project">
+    <div class="print-title">底稿进度</div>
+    <div class="filters">
+      <select id="pf-type"><option value="">全部类型</option></select>
+      <select id="pf-status"><option value="">全部状态</option></select>
+      <input type="text" id="pf-kw" placeholder="搜索项目…">
+      <span style="font-size:12px;color:#999;" id="pf-count"></span>
+    </div>
+    <div class="charts">
+      <div class="chart-box"><h3>各项目底稿（已完成 / 未完成）</h3><div class="cc tall"><canvas id="c-projwp"></canvas></div></div>
+      <div class="chart-box"><h3>待复核统计（待FIC / 待EIC / 已复核）</h3><div class="cc tall"><canvas id="c-review"></canvas></div></div>
+    </div>
+    <div class="charts" style="grid-template-columns:1fr;">
+      <div class="chart-box"><h3>各科目(section)底稿完成情况</h3><div class="cc tall"><canvas id="c-section"></canvas></div></div>
+    </div>
+    <div class="table-box"><table id="t-project"><thead></thead><tbody></tbody></table></div>
+    <p class="hint" style="font-size:12px;color:#aaa;margin-top:8px;">说明：底稿进度按“已完成→FIC复核→EIC复核→首次交付→最终交付”流程展示各阶段已达数量 / 该项目底稿总数。</p>
+  </div>
+
+  <!-- 函证 -->
+  <div class="page" id="page-conf">
+    <div class="print-title">函证进度</div>
+    <div class="filters">
+      <select id="cf-proj"><option value="">全部项目</option></select>
+      <select id="cf-mode"><option value="">全部</option><option value="unback">仅未收回</option><option value="unsent">仅未发出</option></select>
+      <input type="text" id="cf-kw" placeholder="搜索项目…">
+      <span style="font-size:12px;color:#999;" id="cf-count"></span>
+    </div>
+    <div class="cards" id="conf-cards"></div>
+    <div class="charts">
+      <div class="chart-box"><h3>函证类型数量及占比（电子 vs 纸质）</h3><div class="cc sm"><canvas id="c-conftype"></canvas></div></div>
+      <div class="chart-box"><h3>各项目函证：已收回 / 未收回</h3><div class="cc sm"><canvas id="c-conf"></canvas></div></div>
+    </div>
+    <div class="table-box"><table id="t-conf"><thead></thead><tbody></tbody></table></div>
+  </div>
+
+  <!-- OS -->
+  <div class="page" id="page-os">
+    <div class="print-title">OS 进度</div>
+    <div class="cards" id="os-cards"></div>
+    <div class="charts">
+      <div class="chart-box"><h3>内部 vs 外部卡点（未解决）</h3><div class="cc sm"><canvas id="c-oskind"></canvas></div></div>
+      <div class="chart-box"><h3>OS 分类分布</h3><div class="cc sm"><canvas id="c-oscls"></canvas></div></div>
+    </div>
+    <div class="tablebar">
+      <b style="font-size:14px;">OS 清单</b>
+      <span style="font-size:12px;color:#999;" id="of-count"></span>
+      <button class="btn" id="of-clear" style="margin-left:auto;">清除筛选</button>
+    </div>
+    <div class="table-box"><table id="t-os"><thead></thead><tbody></tbody></table></div>
+    <p class="hint" style="font-size:12px;color:#aaa;margin-top:8px;">说明：点击表头下方的下拉/搜索框可按列筛选 OS 清单。内部卡点＝需 CSDC 解决（OS_CSDC），外部卡点＝待项目组/客户跟进（OS_ET、OS_PBC、issue、提醒事项）。</p>
+  </div>
+
+  <!-- 员工维度（放最后）-->
+  <div class="page" id="page-staff">
+    <div class="print-title">员工维度</div>
+    <div class="filters">
+      <select id="sf-name"><option value="">全部员工</option></select>
+      <span style="font-size:12px;color:#999;" id="sf-count"></span>
+    </div>
+    <div class="cards" id="staff-cards"></div>
+    <div class="chart-box" style="margin-bottom:18px;"><h3>各员工底稿：已完成 / 进行中 / 未开始</h3><div class="cc sm"><canvas id="c-staff"></canvas></div></div>
+    <div class="table-box"><table id="t-staff"><thead></thead><tbody></tbody></table></div>
+    <p class="hint" style="font-size:12px;color:#aaa;margin-top:8px;">说明：BKD 列为空视为“未开始”；已填 BKD 视为“已开始”；标记“是否完成=Y”视为“已完成”。</p>
+  </div>
+</div>
+
+<footer>数据来源：你选择的 Excel · 全部在本地浏览器计算，数据不上传任何服务器</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const hasFSA=('showOpenFilePicker'in window), isFile=(location.protocol==='file:');
+let fileHandle=null,lastMod=0,autoTimer=null,DATA=null,charts={};
+const TODAY=new Date();
+
+/* ===== 启动：查看者自动加载 data.js ===== */
+window.addEventListener('load',()=>{
+  if(typeof Chart!=='undefined'){
+    Chart.defaults.animation=false;
+    Chart.defaults.font.family='"Microsoft YaHei","Segoe UI",sans-serif';
+    Chart.register(valueLabelPlugin);
+  }
+  loadSharedData();
+});
+
+/* 自定义插件：在柱/饼上显示数值与占比 */
+const fmtNum=v=>Number.isInteger(v)?v:Math.round(v);
+const valueLabelPlugin={
+  id:'valueLabel',
+  afterDatasetsDraw(chart){
+    // 配置优先从 options.plugins.valueLabel 读取（首帧即可用），兼容旧的 chart.$labels
+    const cfg=(chart.options&&chart.options.plugins&&chart.options.plugins.valueLabel)||chart.$labels||{};
+    const ctx=chart.ctx;
+    const type=chart.config.type;
+    if(type==='doughnut'||type==='pie'){
+      const dsList=chart.data.datasets;
+      dsList.forEach((ds,di)=>{
+        if(cfg.ringLabel){ if(!cfg.ringLabel.includes(di))return; }   // 指定圈才放标签
+        else if(di!==0)return;                                        // 默认只给第0个(单环)放
+        const total=ds.data.reduce((a,b)=>a+(+b||0),0);if(!total)return;
+        const meta=chart.getDatasetMeta(di);
+        const fs=cfg.pieFont||10;
+        ctx.save();ctx.font='bold '+fs+'px "Microsoft YaHei",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        meta.data.forEach((arc,i)=>{const v=+ds.data[i]||0;if(v<=0)return;
+          const pct=Math.round(v/total*100);if(pct<6)return;
+          const pos=arc.tooltipPosition();
+          const txt=cfg.valueOnly?(v+''):(v+' / '+pct+'%');
+          // 白色字 + 浅描边，字号小、不刺眼
+          ctx.lineWidth=2;ctx.strokeStyle='rgba(0,0,0,.25)';
+          ctx.strokeText(txt,pos.x,pos.y);
+          ctx.fillStyle='#ffffff';ctx.fillText(txt,pos.x,pos.y);
+        });
+        ctx.restore();
+      });
+      return;
+    }
+    // bar：数值统一显示在柱“外侧”（横向=右侧，纵向=上方），深蓝字+白描边，不压在柱上
+    const horizontal=chart.options.indexAxis==='y';
+    const stacked=!!(chart.options.scales&&((chart.options.scales.x&&chart.options.scales.x.stacked)||(chart.options.scales.y&&chart.options.scales.y.stacked)));
+    const LABEL='#2c5d8f';
+    ctx.save();ctx.font='bold 11px "Microsoft YaHei",sans-serif';
+    if(stacked){
+      // 堆叠：在整条的末端外侧显示该条总计（避免段内白字看不清）
+      const nCat=chart.data.labels.length;
+      for(let i=0;i<nCat;i++){
+        let total=0,lastEl=null;
+        chart.data.datasets.forEach((ds,di)=>{const meta=chart.getDatasetMeta(di);if(meta.hidden)return;
+          const v=+ds.data[i]||0;total+=v;const el=meta.data[i];if(el)lastEl=el;});
+        // 可选：在各段内显示该段数值（白字），用于需要看清各分段的图（如函证已收/未收）
+        if(cfg.segLabel){
+          ctx.font='bold 10px "Microsoft YaHei",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+          chart.data.datasets.forEach((ds,di)=>{const meta=chart.getDatasetMeta(di);if(meta.hidden)return;
+            const v=+ds.data[i]||0;if(v< (cfg.segMin||1))return;const el=meta.data[i];if(!el)return;
+            const p=el.tooltipPosition();
+            ctx.lineWidth=2.5;ctx.strokeStyle='rgba(0,0,0,.35)';ctx.fillStyle='#fff';
+            ctx.strokeText(fmtNum(v),p.x,p.y);ctx.fillText(fmtNum(v),p.x,p.y);});
+          ctx.font='bold 11px "Microsoft YaHei",sans-serif';
+        }
+        if(!total||!lastEl)continue;
+        ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.fillStyle=LABEL;
+        if(horizontal){ctx.textAlign='left';ctx.textBaseline='middle';
+          ctx.strokeText(fmtNum(total),lastEl.x+5,lastEl.y);ctx.fillText(fmtNum(total),lastEl.x+5,lastEl.y);}
+        else{ctx.textAlign='center';ctx.textBaseline='bottom';
+          ctx.strokeText(fmtNum(total),lastEl.x,lastEl.y-4);ctx.fillText(fmtNum(total),lastEl.x,lastEl.y-4);}
+      }
+    }else{
+      chart.data.datasets.forEach((ds,di)=>{
+        const meta=chart.getDatasetMeta(di);if(meta.hidden)return;
+        meta.data.forEach((el,i)=>{const v=+ds.data[i]||0;if(!v)return;
+          ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.fillStyle=LABEL;
+          if(horizontal){ctx.textAlign='left';ctx.textBaseline='middle';
+            ctx.strokeText(fmtNum(v),el.x+5,el.y);ctx.fillText(fmtNum(v),el.x+5,el.y);}
+          else{ctx.textAlign='center';ctx.textBaseline='bottom';
+            ctx.strokeText(fmtNum(v),el.x,el.y-4);ctx.fillText(fmtNum(v),el.x,el.y-4);}
+        });
+      });
+    }
+    ctx.restore();
+  }
+};
+function loadSharedData(){
+  if(window.__DASHBOARD_DATA){
+    DATA=window.__DASHBOARD_DATA.data;
+    const gen=window.__DASHBOARD_DATA.generatedAt||'';
+    $('lastUpdate').textContent=gen?('数据更新于 '+gen):'';
+    applyData(false);
+    return;
+  }
+  noShared();
+}
+function noShared(){
+  if(typeof XLSX==='undefined'){banner('err','❌ <b>Excel解析库未加载</b>（公司网络可能屏蔽了外网，且本地缺少 xlsx.full.min.js）。请把 xlsx.full.min.js 与 chart.umd.min.js 放到本文件同目录。');}
+  else if(isFile){banner('warn','ℹ️ 未发现共享数据 <code>data.js</code>。<br>· <b>查看者</b>：请等维护者把 data.js 放入本文件夹。<br>· <b>维护者</b>：点右上「选择 Excel 文件」→「⬇ 更新共享数据」生成 data.js 放入同文件夹即可。');}
+}
+function banner(t,h){$('banner').className='banner show '+t;$('banner').innerHTML=h;}
+function hideBanner(){$('banner').className='banner';}
+
+/* ===== 文件读取（带降级）===== */
+$('pickBtn').onclick=pickFile;
+$('pdfBtn').onclick=exportAllPDF;
+function exportAllPDF(){
+  if(!DATA){window.print();return;}
+  const tabs=['overview','project','conf','os','staff'];
+  // 1) 让所有页都可见，使每个 canvas 拿到真实尺寸
+  document.body.classList.add('print-prep');
+  // 2) 渲染每个维度的图表
+  tabs.forEach(t=>renderCharts(t));
+  // 3) 等图表绘制完成后打印，结束后恢复
+  setTimeout(()=>{
+    window.print();
+    document.body.classList.remove('print-prep');
+    // 恢复为只显示当前页 + 重绘当前页图表，避免隐藏页里残留尺寸异常
+    renderCharts(currentTab);
+  },400);
+}
+$('legacyInput').onchange=async()=>{const f=$('legacyInput').files[0];if(!f)return;try{parse(await f.arrayBuffer());mark();after();}catch(e){banner('err','❌ 读取失败：'+e.message);}};
+async function pickFile(){
+  hideBanner(); if(typeof XLSX==='undefined'){banner('err','❌ Excel解析库未加载，无法读取。');return;}
+  if(hasFSA&&!isFile){try{[fileHandle]=await window.showOpenFilePicker({types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx','.xlsm','.xls']}}]});await readHandle(true);auto();after();return;}catch(e){if(e&&e.name==='AbortError')return;}}
+  $('legacyInput').value='';$('legacyInput').click();
+}
+function after(){$('exportBtn').style.display='inline-block';}
+function auto(){if(autoTimer)clearInterval(autoTimer);autoTimer=setInterval(async()=>{try{await readHandle(false);}catch(e){}},5000);}
+async function readHandle(force){const f=await fileHandle.getFile();if(!force&&f.lastModified===lastMod)return;lastMod=f.lastModified;parse(await f.arrayBuffer());mark();}
+function mark(){$('lastUpdate').textContent='更新于 '+new Date().toLocaleTimeString('zh-CN');}
+
+/* ===== 维护者：生成 data.js 供他人查看 ===== */
+$('exportBtn').onclick=()=>{
+  if(!DATA){banner('warn','请先「选择 Excel 文件」载入数据，再生成共享数据。');return;}
+  const payload={generatedAt:new Date().toLocaleString('zh-CN'),data:DATA};
+  const js='window.__DASHBOARD_DATA='+JSON.stringify(payload)+';';
+  const blob=new Blob([js],{type:'text/javascript'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='data.js';
+  document.body.appendChild(a);a.click();a.remove();
+  banner('warn','✅ 已生成 <code>data.js</code>（在你的下载文件夹）。请把它<b>覆盖到 OneDrive 看板所在的同一文件夹</b>，其他人打开 HTML 即可看到最新进度。');
+};
+
+/* ===== 解析（按表头名称取值，Excel 增删字段不影响看板列示）===== */
+function findTable(aoa,marker){for(let i=0;i<aoa.length;i++){const t=aoa[i].map(x=>String(x==null?'':x).trim());if(marker(t))return{headers:t,rows:aoa.slice(i+1)};}return{headers:[],rows:[]};}
+const idxsOf=(h,n)=>h.map((x,i)=>x===n?i:-1).filter(i=>i>=0);
+function cellGetter(headers){return(row,name)=>{const ids=idxsOf(headers,name);for(const i of ids){if(row[i]!=null&&row[i]!=='')return row[i];}return ids.length?row[ids[0]]:'';};}
+const Y=v=>String(v).trim().toUpperCase()==='Y';
+const has=v=>String(v).trim()!=='';
+const numv=v=>{const n=parseFloat(String(v).replace(/[%,¥, ]/g,''));return isNaN(n)?0:n;};
+const datev=v=>v instanceof Date?v:(v&&!isNaN(Date.parse(v))?new Date(v):null);
+
+function parse(buf){
+  const wb=XLSX.read(buf,{type:'array',cellDates:true});
+  const D=buildData(wb);
+  if(!D)return;
+  DATA=D; applyData(true);
+}
+function buildData(wb){
+  const sheet=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''}):[];
+  const aoaKB=sheet('看板'),aoaBase=sheet('项目基础信息'),aoaDet=sheet('底稿进度'),aoaConf=sheet('银行函证进度'),aoaOS=sheet('OS list及缺失PBC');
+  if(!aoaBase.length&&!aoaDet.length){banner('warn','⚠️ 没找到预期的工作表（项目基础信息/底稿进度）。请确认选对了文件。');return null;}
+  const ms=d=>{const x=datev(d);return x?x.getTime():null;};
+
+  const KB=findTable(aoaKB,r=>r.includes('服务单号')&&r.includes('预算'));const gKB=cellGetter(KB.headers);
+  const budgetBySn={};
+  KB.rows.forEach(r=>{const sn=String(gKB(r,'服务单号')).trim();if(!sn||!/EDC/i.test(sn))return;
+    budgetBySn[sn]={budget:numv(gKB(r,'预算')),actual:numv(gKB(r,'实际'))};});
+
+  const B=findTable(aoaBase,r=>r.includes('服务单号')&&r.includes('首次交付DDL'));const gB=cellGetter(B.headers);
+  const projects={};const nameToSn={};
+  B.rows.forEach(r=>{const sn=String(gB(r,'服务单号')).trim();const nm=String(gB(r,'项目名称')).trim();
+    if(!nm)return;const key=sn||nm;nameToSn[nm]=key;
+    projects[key]={sn:key,name:nm,type:String(gB(r,'项目类型')).trim()||'未分类',
+      ddl1:ms(gB(r,'首次交付DDL')),ddl2:ms(gB(r,'整体交付DDL')),
+      budget:0,actual:0,wp:0,started:0,done:0,fic_r:0,eic_r:0,deliv1:0,deliv2:0,os:0};
+  });
+
+  const D=findTable(aoaDet,r=>r.includes('WP服务单')||r.includes('entity'));const gD=cellGetter(D.headers);
+  const staff={};
+  const sectionAgg={}; // 科目维度：以 section 前缀(C/E/G/K1...)聚合
+  const secKey=s=>{s=String(s).trim();const m=s.match(/^([A-Za-z]+\d*)[_\s]/);let k=m?m[1]:(s.split(/[_\s]/)[0]||s||'其他');if(/^U$/i.test(k)||/^U_?exp/i.test(s))k='Uexp';return k;};
+  D.rows.forEach(r=>{const sn=String(gD(r,'WP服务单')).trim();const nm=String(gD(r,'项目')).trim();
+    const entity=String(gD(r,'entity')).trim();if(!nm&&!entity)return;
+    const key=projects[sn]?sn:(nameToSn[nm]||sn||nm);
+    const rec={name:nm,owner:String(gD(r,'负责人')).trim()||'未分配',section:String(gD(r,'section')).trim(),
+      started:has(gD(r,'BKD')),done:Y(gD(r,'是否完成')),fic:Y(gD(r,'FIC复核')),eic:Y(gD(r,'EIC复核')),
+      deliv1:Y(gD(r,'首次交付')),deliv2:Y(gD(r,'最终交付')),os:String(gD(r,'OS事项')).trim()};
+    let p=projects[key];if(!p){p=projects[key]={sn:key,name:nm,type:'未分类',ddl1:null,ddl2:null,budget:0,actual:0,wp:0,started:0,done:0,fic_r:0,eic_r:0,deliv1:0,deliv2:0,os:0};nameToSn[nm]=key;}
+    p.wp++;if(rec.started)p.started++;if(rec.done)p.done++;if(rec.fic)p.fic_r++;if(rec.eic)p.eic_r++;
+    if(rec.deliv1)p.deliv1++;if(rec.deliv2)p.deliv2++;
+    if(rec.os&&rec.os!=='无')p.os++;
+    const s=staff[rec.owner]||(staff[rec.owner]={owner:rec.owner,wp:0,started:0,done:0,fic:0,eic:0,os:0,_projs:new Set()});
+    s.wp++;if(rec.started)s.started++;if(rec.done)s.done++;if(rec.fic)s.fic++;if(rec.eic)s.eic++;
+    if(rec.os&&rec.os!=='无')s.os++;if(rec.name)s._projs.add(rec.name);
+    if(rec.section){const sk=secKey(rec.section);const sg=sectionAgg[sk]||(sectionAgg[sk]={section:sk,wp:0,done:0});sg.wp++;if(rec.done)sg.done++;}
+  });
+  Object.values(projects).forEach(p=>{const b=budgetBySn[p.sn];if(b){p.budget=b.budget;p.actual=b.actual;}});
+  const staffArr=Object.values(staff).map(s=>({owner:s.owner,wp:s.wp,started:s.started,done:s.done,fic:s.fic,eic:s.eic,os:s.os,projN:s._projs.size}));
+  const sectionArr=Object.values(sectionAgg).sort((a,b)=>b.wp-a.wp);
+
+  const C=findTable(aoaConf,r=>r.includes('服务单号')&&(r.includes('已收回')||r.includes('合计生成')));const gC=cellGetter(C.headers);
+  const conf=[];
+  // 函证类型：电子(电子格式一/二 + confirmation平台) vs 纸质(纸质格式一/二) vs HK17
+  const confTypes={'电子格式一':0,'电子格式二':0,'confirmation平台':0,'纸质格式一':0,'纸质格式二':0,'HK17':0};
+  C.rows.forEach(r=>{const sn=String(gC(r,'服务单号')).trim();const nm=String(gC(r,'项目')).trim();
+    if(!sn||!/EDC/i.test(sn))return;
+    const e1=numv(gC(r,'电子格式一')),e2=numv(gC(r,'电子格式二')),cfm=numv(gC(r,'confirmation')),
+      p1=numv(gC(r,'纸质格式一')),p2=numv(gC(r,'纸质格式二')),hk=numv(gC(r,'HK17'));
+    confTypes['电子格式一']+=e1;confTypes['电子格式二']+=e2;confTypes['confirmation平台']+=cfm;
+    confTypes['纸质格式一']+=p1;confTypes['纸质格式二']+=p2;confTypes['HK17']+=hk;
+    conf.push({sn,name:nm,gen:numv(gC(r,'合计生成')),sent:numv(gC(r,'已发出')),unsent:numv(gC(r,'未发出')),
+      back:numv(gC(r,'已收回')),unback:numv(gC(r,'未收回')),owner:String(gC(r,'负责人')).trim(),note:String(gC(r,'备注')).trim(),
+      elec:e1+e2+cfm,paper:p1+p2+hk});});
+  const confByName={};conf.forEach(c=>{const k=(c.name||'').replace(/[-—].*/,'').trim();
+    const t=confByName[k]||(confByName[k]={gen:0,sent:0,unsent:0,back:0,unback:0});t.gen+=c.gen;t.sent+=c.sent;t.unsent+=c.unsent;t.back+=c.back;t.unback+=c.unback;});
+
+  const O=findTable(aoaOS,r=>r.includes('OS事项')&&(r.includes('序号')||r.includes('事项分类')));const gO=cellGetter(O.headers);
+  const oslist=[];
+  // 内部卡点：需 CSDC(底稿交付中心)解决的（OS_CSDC）；外部卡点：需项目组/客户解决（OS_ET、OS_PBC、issue、提醒事项）
+  const isInternal=cls=>/CSDC/i.test(cls);
+  O.rows.forEach(r=>{const nm=String(gO(r,'项目')).trim();const item=String(gO(r,'OS事项')).trim();
+    if(!item)return;
+    const cls=String(gO(r,'事项分类')).trim()||'未分类';
+    oslist.push({name:nm,entity:String(gO(r,'Entity')).trim(),subj:String(gO(r,'科目')).trim(),item,
+      cls,kind:isInternal(cls)?'internal':'external',raise:ms(gO(r,'提出时间')),
+      owner:String(gO(r,'CSDC负责人')).trim(),solved:Y(gO(r,'是否解决')),note:String(gO(r,'备注')).trim()});});
+
+  return {projects:Object.values(projects).filter(p=>p.name),staff:staffArr,section:sectionArr,conf,confByName,confTypes,oslist};
+}
+function applyData(fromExcel){
+  hideBanner();$('tabs').style.display='flex';$('emptyState').style.display='none';
+  if(fromExcel)$('exportBtn').style.display='inline-block';
+  renderAll();showTab(currentTab);
+}
+
+/* ===== 计算辅助 ===== */
+const rate=(a,b)=>b?Math.round(a/b*100):0;
+const daysTo=d=>d?Math.ceil((d-TODAY)/86400000):null;
+const fmtMs=ms=>ms?new Date(ms).toLocaleDateString('zh-CN'):'';
+const cfKey=nm=>(nm||'').replace(/[-—].*/,'').trim();
+function deliveryBucket(p){
+  if(p.wp===0)return 'doing';
+  if(p.deliv2>=p.wp)return 'final';   // 整体交付
+  if(p.deliv1>=p.wp)return 'first';   // 首次交付（全部首交，但未全部最终交付）
+  return 'doing';                     // 进行中（含未开始）
+}
+function projStatus(p){
+  if(p.wp===0||p.started===0)return{t:'未开始',c:'#999'};
+  const b=deliveryBucket(p);
+  if(b==='final')return{t:'最终交付',c:'#2db84d'};
+  if(b==='first')return{t:'首次交付',c:'#7ed957'};
+  return{t:'进行中',c:'#4a90d9'};
+}
+function budgetAlert(p){ // 取最严重的一条
+  if(p.budget<=0)return null;
+  const remPct=(p.budget-p.actual)/p.budget*100;
+  if(p.actual>p.budget)return{lv:'crit',tag:'超支',msg:`超 ${(p.actual-p.budget).toFixed(0)}h（预算${p.budget.toFixed(0)}/实际${p.actual.toFixed(0)}）`};
+  if(remPct<10&&p.deliv1<p.wp)return{lv:'crit',tag:'预算紧张',msg:`剩余预算仅 ${remPct.toFixed(0)}%，但尚未完成首次交付（${p.deliv1}/${p.wp}）`};
+  if(remPct<30&&rate(p.done,p.wp)<80)return{lv:'warn',tag:'预算预警',msg:`剩余预算 ${remPct.toFixed(0)}%，进度 ${rate(p.done,p.wp)}%`};
+  return null;
+}
+
+/* ===== Tab 切换：只渲染当前页图表，避免在隐藏页里渲染导致闪屏 ===== */
+let currentTab='overview';
+$('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+function showTab(t){currentTab=t;
+  $('tabs').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  $('page-'+t).classList.add('active');
+  if(DATA)renderCharts(t);
+}
+
+/* ===== 渲染入口 ===== */
+function renderAll(){renderOverviewCards();renderProject();renderStaff();renderConf();renderOS();}
+function kpi(arr,el){$(el).innerHTML=arr.map(c=>`<div class="card ${c.c||''}"><div class="label">${c.l}</div><div class="value ${c.s?'small':''}">${c.v}</div>${c.sub?`<div class="sub2">${c.sub}</div>`:''}</div>`).join('');}
+function fillSel(id,items){const s=$(id),cur=s.value;s.innerHTML=s.options[0].outerHTML+items.map(i=>`<option>${i}</option>`).join('');s.value=cur;}
+
+/* ----- 全览 ----- */
+function renderOverviewCards(){
+  const P=DATA.projects;
+  const wp=P.reduce((s,p)=>s+p.wp,0),done=P.reduce((s,p)=>s+p.done,0);
+  const bud=P.reduce((s,p)=>s+p.budget,0),act=P.reduce((s,p)=>s+p.actual,0);
+  const over=P.filter(p=>p.budget>0&&p.actual>p.budget);
+  const osOpen=DATA.oslist.filter(o=>!o.solved).length;
+  const osInternalOpen=DATA.oslist.filter(o=>!o.solved&&o.kind==='internal').length;
+  const cBack=DATA.conf.reduce((s,c)=>s+c.back,0),cGen=DATA.conf.reduce((s,c)=>s+c.gen,0),cUn=DATA.conf.reduce((s,c)=>s+c.unback,0),cUnsent=DATA.conf.reduce((s,c)=>s+c.unsent,0);
+  const first=P.filter(p=>deliveryBucket(p)==='first').length;
+  const final=P.filter(p=>deliveryBucket(p)==='final').length;
+  const doing=P.length-first-final;
+  kpi([
+    {l:'项目总数',v:P.length},
+    {l:'进行中',v:doing,c:'blue'},
+    {l:'首次交付',v:first,c:'lgreen'},
+    {l:'最终交付',v:final,c:'green'},
+  ],'ov-cards');
+  kpi([
+    {l:'底稿完成率',v:rate(done,wp)+'%',c:'blue',sub:`${done}/${wp} 张`},
+    {l:'预算使用率',v:rate(act,bud)+'%',c:act>bud?'red':'green',sub:`${act.toFixed(0)}/${bud.toFixed(0)} h`},
+    {l:'超支项目',v:over.length,c:over.length?'red':'green'},
+    {l:'函证未发出',v:cUnsent,c:cUnsent?'red':'green'},
+    {l:'函证未收回',v:cUn,c:cUn?'red':'green',sub:`回收率 ${rate(cBack,cGen)}%`},
+    {l:'OS 未解决',v:osOpen,c:osOpen?'purple':'green',sub:`内部卡点 ${osInternalOpen}`},
+  ],'ov-cards2');
+
+  const alerts=[];
+  P.forEach(p=>{const b=budgetAlert(p);if(b)alerts.push({lv:b.lv,proj:p.name,tag:b.tag,msg:b.msg});
+    if(p.started===0)return;
+    const firstDone=p.deliv1>=p.wp, finalDone=p.deliv2>=p.wp;
+    // 首次交付：DDL已到但未全部首交=逾期；已全部首交则不预警
+    if(!firstDone){const d1=daysTo(p.ddl1);
+      if(d1!==null&&d1<0)alerts.push({lv:'crit',proj:p.name,tag:'首交逾期',msg:`首次交付DDL已过 ${Math.abs(d1)} 天，仍有 ${p.wp-p.deliv1} 张未首交`});
+      else if(d1!==null&&d1<=7)alerts.push({lv:'warn',proj:p.name,tag:'临近首交',msg:`距首次交付 ${d1} 天，已首交 ${p.deliv1}/${p.wp}`});
+    }
+    // 最终交付：已全部首交但未全部最终交付，看最终DDL
+    if(firstDone&&!finalDone){const d2=daysTo(p.ddl2);
+      if(d2!==null&&d2<0)alerts.push({lv:'crit',proj:p.name,tag:'终交逾期',msg:`最终交付DDL已过 ${Math.abs(d2)} 天，仍有 ${p.wp-p.deliv2} 张未最终交付`});
+      else if(d2!==null&&d2<=3)alerts.push({lv:'warn',proj:p.name,tag:'临近终交',msg:`距最终交付 ${d2} 天，已最终交付 ${p.deliv2}/${p.wp}`});
+    }
+  });
+  // 函证：按项目把未发出+未收回合并成一行
+  const confAgg={};
+  DATA.conf.forEach(c=>{const k=cfKey(c.name);const t=confAgg[k]||(confAgg[k]={unsent:0,unback:0});t.unsent+=c.unsent;t.unback+=c.unback;});
+  Object.entries(confAgg).forEach(([nm,t])=>{if(!t.unsent&&!t.unback)return;
+    const parts=[];if(t.unsent)parts.push(`未发出 ${t.unsent} 份`);if(t.unback)parts.push(`未收回 ${t.unback} 份`);
+    alerts.push({lv:'warn',proj:nm,tag:'函证',msg:parts.join('，')});});
+  // OS：按项目合并内部/外部
+  const osAgg={};
+  DATA.oslist.filter(o=>!o.solved).forEach(o=>{const t=osAgg[o.name]||(osAgg[o.name]={int:0,ext:0});if(o.kind==='internal')t.int++;else t.ext++;});
+  Object.entries(osAgg).forEach(([nm,t])=>{
+    const parts=[];if(t.int)parts.push(`内部卡点 ${t.int} 项(需CSDC)`);if(t.ext)parts.push(`外部卡点 ${t.ext} 项(待项目组/客户)`);
+    alerts.push({lv:t.int?'crit':'info',proj:nm,tag:'OS',msg:parts.join('，')});});
+  const order={crit:0,warn:1,info:2};alerts.sort((a,b)=>order[a.lv]-order[b.lv]);
+  $('ov-alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert ${a.lv}"><span class="tag">${a.tag}</span><b>${a.proj}</b>&nbsp;—&nbsp;${a.msg}</div>`).join(''):'<div style="color:#999;padding:8px;">暂无预警 🎉</div>';
+}
+
+/* ----- 项目维度 ----- */
+let _projRows=[];
+function renderProject(){
+  fillSel('pf-type',[...new Set(DATA.projects.map(p=>p.type).filter(Boolean))]);
+  fillSel('pf-status',[...new Set(DATA.projects.map(p=>projStatus(p).t))]);
+  ['pf-type','pf-status','pf-kw'].forEach(id=>$(id).oninput=drawProjectTable);
+  drawProjectTable();
+}
+function drawProjectTable(){
+  const tp=$('pf-type').value,st=$('pf-status').value,kw=$('pf-kw').value.trim();
+  let rows=DATA.projects.filter(p=>(!tp||p.type===tp)&&(!st||projStatus(p).t===st)&&(!kw||p.name.includes(kw)));
+  rows.sort((a,b)=>rate(a.done,a.wp)-rate(b.done,b.wp));
+  _projRows=rows;
+  $('pf-count').textContent='共 '+rows.length+' 个项目';
+  const thead=`<tr>
+    <th rowspan="2">项目</th><th rowspan="2">类型</th><th rowspan="2">状态</th><th rowspan="2" class="cell-c">函证<br>已收/生成</th>
+    <th colspan="5" class="group-th">底稿进度（已达 / 总数）</th>
+    <th rowspan="2" class="cell-c">OS</th></tr>
+    <tr><th class="cell-c">是否完成</th><th class="cell-c">FIC复核</th><th class="cell-c">EIC复核</th><th class="cell-c">首次交付</th><th class="cell-c">最终交付</th></tr>`;
+  $('t-project').querySelector('thead').innerHTML=thead;
+  const f=(a,b)=>`<span class="frac">${a}/${b}</span>`;
+  $('t-project').querySelector('tbody').innerHTML=rows.map(p=>{
+    const stt=projStatus(p);
+    const cf=DATA.confByName[cfKey(p.name)];
+    const cfTxt=cf?`${cf.back}/${cf.gen}${cf.unback>0?' <span class=over>(欠'+cf.unback+')</span>':''}`:'—';
+    return `<tr>
+      <td><b>${p.name}</b></td><td>${p.type}</td>
+      <td><span class="pill" style="background:${stt.c}">${stt.t}</span></td>
+      <td class="cell-c">${cfTxt}</td>
+      <td class="cell-c">${f(p.done,p.wp)}</td>
+      <td class="cell-c">${f(p.fic_r,p.wp)}</td>
+      <td class="cell-c">${f(p.eic_r,p.wp)}</td>
+      <td class="cell-c">${f(p.deliv1,p.wp)}</td>
+      <td class="cell-c">${f(p.deliv2,p.wp)}</td>
+      <td class="cell-c">${p.os?'<span class=over>'+p.os+'</span>':0}</td>
+    </tr>`;}).join('');
+  if(currentTab==='project')drawProjectCharts();
+}
+function drawProjectCharts(){
+  const rows=_projRows;if(!rows.length){destroy('c-projwp');destroy('c-review');destroy('c-section');return;}
+  bar('c-projwp',{labels:rows.map(p=>p.name),datasets:[
+    {label:'已完成',data:rows.map(p=>p.done),backgroundColor:'#2db84d',stack:'a'},
+    {label:'未完成',data:rows.map(p=>p.wp-p.done),backgroundColor:'#e3e3e8',stack:'a'}]},
+    {indexAxis:'y',scales:{x:{stacked:true},y:{stacked:true}}});
+  // 待复核统计（双环）：内圈=FIC(待FIC复核/FIC已复核)，外圈=EIC(待EIC复核/EIC已复核)
+  let waitFic=0,ficDone=0,waitEic=0,eicDone=0;
+  rows.forEach(p=>{waitFic+=Math.max(0,p.done-p.fic_r);ficDone+=p.fic_r;waitEic+=Math.max(0,p.fic_r-p.eic_r);eicDone+=p.eic_r;});
+  reviewDonut('c-review',
+    {labels:['待FIC复核','FIC已复核'],data:[waitFic,ficDone],colors:['#f5a623','#2db84d']},
+    {labels:['待EIC复核','EIC已复核'],data:[waitEic,eicDone],colors:['#4a90d9','#1d8f3a']});
+  // 各科目完成情况（堆叠条）
+  const sec=(DATA.section||[]).slice(0,16);
+  bar('c-section',{labels:sec.map(s=>s.section),datasets:[
+    {label:'已完成',data:sec.map(s=>s.done),backgroundColor:'#2db84d',stack:'a'},
+    {label:'未完成',data:sec.map(s=>s.wp-s.done),backgroundColor:'#e3e3e8',stack:'a'}]},
+    {indexAxis:'y',scales:{x:{stacked:true},y:{stacked:true}}});
+}
+
+/* ----- 员工维度 ----- */
+function renderStaff(){
+  if(!$('sf-name').dataset.init){fillSel('sf-name',DATA.staff.map(s=>s.owner).sort());$('sf-name').dataset.init='1';$('sf-name').oninput=()=>{renderStaff();renderCharts('staff');};}
+  const sel=$('sf-name').value;
+  let S=DATA.staff.slice().sort((a,b)=>b.wp-a.wp);
+  if(sel)S=S.filter(s=>s.owner===sel);
+  $('sf-count').textContent='共 '+S.length+' 人';
+  const totWp=S.reduce((s,x)=>s+x.wp,0),totStart=S.reduce((s,x)=>s+x.started,0),totDone=S.reduce((s,x)=>s+x.done,0);
+  kpi([{l:'员工数',v:S.length},{l:'分配底稿',v:totWp,c:'blue'},
+    {l:'已开始',v:totStart,c:'blue',sub:`未开始 ${totWp-totStart}`},
+    {l:'已完成',v:totDone,c:'green',sub:`完成率 ${rate(totDone,totWp)}%`},
+    {l:'未开始',v:totWp-totStart,c:(totWp-totStart)?'orange':'green'}],'staff-cards');
+  const H=['负责人','分配底稿','已开始','进行中','已完成','完成率','未开始','FIC已复核','EIC已复核','涉及OS','参与项目'];
+  $('t-staff').querySelector('thead').innerHTML='<tr>'+H.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  $('t-staff').querySelector('tbody').innerHTML=S.map(s=>{const r=rate(s.done,s.wp);
+    const c=r>=100?'var(--green)':r>=60?'var(--blue)':'var(--orange)';const doing=s.started-s.done;
+    return `<tr><td><b>${s.owner}</b></td><td>${s.wp}</td><td>${s.started}</td>
+      <td>${doing?'<span style="color:var(--blue)">'+doing+'</span>':0}</td><td>${s.done}</td>
+      <td><div class="progress"><span style="width:${r}%;background:${c}"></span><em>${r}%</em></div></td>
+      <td>${(s.wp-s.started)?'<span class=over>'+(s.wp-s.started)+'</span>':0}</td>
+      <td>${s.fic}</td><td>${s.eic}</td><td>${s.os}</td><td>${s.projN}</td></tr>`;}).join('');
+}
+
+/* ----- 函证 ----- */
+function renderConf(){
+  if(!$('cf-proj').dataset.init){fillSel('cf-proj',[...new Set(DATA.conf.map(c=>c.name).filter(Boolean))]);$('cf-proj').dataset.init='1';}
+  ['cf-kw','cf-mode','cf-proj'].forEach(id=>$(id).oninput=drawConf);
+  drawConf();
+}
+let _confRows=[];
+function drawConf(){
+  const kw=$('cf-kw').value.trim(),mode=$('cf-mode').value,pj=$('cf-proj').value;
+  let C=DATA.conf.filter(x=>(!pj||x.name===pj)&&(!kw||(x.name||'').includes(kw))&&(mode!=='unback'||x.unback>0)&&(mode!=='unsent'||x.unsent>0));
+  _confRows=C;
+  const all=DATA.conf;
+  const gen=all.reduce((s,x)=>s+x.gen,0),sent=all.reduce((s,x)=>s+x.sent,0),back=all.reduce((s,x)=>s+x.back,0),unback=all.reduce((s,x)=>s+x.unback,0),unsent=all.reduce((s,x)=>s+x.unsent,0);
+  const elec=all.reduce((s,x)=>s+(x.elec||0),0),paper=all.reduce((s,x)=>s+(x.paper||0),0);
+  kpi([{l:'合计生成',v:gen},{l:'已发出',v:sent,c:'blue'},{l:'未发出',v:unsent,c:unsent?'red':'green'},
+    {l:'已收回',v:back,c:'green'},
+    {l:'未收回',v:unback,c:unback?'red':'green',sub:unback>0?'其中1封已做替代测试':''},
+    {l:'回收率',v:rate(back,gen)+'%',c:'blue'},
+    {l:'电子函证占比',v:rate(elec,elec+paper)+'%',c:'green',sub:`电子 ${elec} / 纸质 ${paper}`}],'conf-cards');
+  $('cf-count').textContent='共 '+C.length+' 行';
+  const H=['项目','合计生成','已发出','未发出','已收回','未收回','回收率','电子','纸质','负责人','备注'];
+  $('t-conf').querySelector('thead').innerHTML='<tr>'+H.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  $('t-conf').querySelector('tbody').innerHTML=C.map(x=>{const r=rate(x.back,x.gen);
+    return `<tr><td><b>${x.name||x.sn}</b></td><td>${x.gen}</td><td>${x.sent}</td>
+      <td>${x.unsent?'<span class=over>'+x.unsent+'</span>':0}</td>
+      <td>${x.back}</td><td>${x.unback?'<span class=over>'+x.unback+'</span>':0}</td>
+      <td>${r}%</td><td>${x.elec||0}</td><td>${x.paper||0}</td><td>${x.owner}</td><td style="white-space:normal;max-width:240px">${x.note||''}</td></tr>`;}).join('');
+  if(currentTab==='conf')drawConfChart();
+}
+function drawConfChart(){
+  const t=DATA.confTypes||{};
+  // 明细类型（外圈）：归类到 电子/纸质 并配色
+  const detail=[
+    {k:'电子格式一',v:t['电子格式一']||0,grp:'电子',c:'#1d8f3a'},
+    {k:'电子格式二',v:t['电子格式二']||0,grp:'电子',c:'#2db84d'},
+    {k:'confirmation平台',v:t['confirmation平台']||0,grp:'电子',c:'#7ed957'},
+    {k:'纸质格式一',v:t['纸质格式一']||0,grp:'纸质',c:'#c77f10'},
+    {k:'纸质格式二',v:t['纸质格式二']||0,grp:'纸质',c:'#f5a623'},
+    {k:'HK17(纸质)',v:t['HK17']||0,grp:'纸质',c:'#f7c873'},
+  ].filter(d=>d.v>0);
+  const elec=detail.filter(d=>d.grp==='电子').reduce((s,d)=>s+d.v,0);
+  const paper=detail.filter(d=>d.grp==='纸质').reduce((s,d)=>s+d.v,0);
+  // 双环：内圈=电子/纸质汇总，外圈=明细类型
+  doubleDonut('c-conftype',
+    {labels:['电子','纸质'],data:[elec,paper],colors:['#2db84d','#f5a623']},
+    {labels:detail.map(d=>d.k),data:detail.map(d=>d.v),colors:detail.map(d=>d.c)});
+  const C=_confRows.length?_confRows:DATA.conf;
+  bar('c-conf',{labels:C.map(x=>x.name||x.sn),datasets:[
+    {label:'已收回',data:C.map(x=>x.back),backgroundColor:'#2db84d',stack:'a'},
+    {label:'未收回',data:C.map(x=>x.unback),backgroundColor:'#e0383e',stack:'a'}]},
+    {scales:{x:{stacked:true},y:{stacked:true}}},
+    {segLabel:true,segMin:1});
+}
+
+/* ----- OS ----- */
+const OS_COLS=[
+  {key:'name', label:'项目',   filter:'select'},
+  {key:'kind', label:'卡点类型',filter:'select', opts:[['internal','内部'],['external','外部']]},
+  {key:'entity',label:'Entity',filter:'text'},
+  {key:'subj', label:'科目',   filter:'text'},
+  {key:'item', label:'OS事项', filter:'text'},
+  {key:'cls',  label:'分类',   filter:'select'},
+  {key:'raise',label:'提出时间',filter:'none'},
+  {key:'owner',label:'负责人', filter:'select'},
+  {key:'solved',label:'是否解决',filter:'select', opts:[['open','未解决'],['solved','已解决']]},
+  {key:'note', label:'备注',   filter:'none'},
+];
+let _osFilter={};
+function renderOS(){
+  _osFilter={};
+  // 构建表头：第一行列名，第二行内嵌筛选控件
+  const uniq=k=>[...new Set(DATA.oslist.map(o=>o[k]).filter(v=>v!==''&&v!=null))];
+  const head1='<tr>'+OS_COLS.map(c=>`<th>${c.label}</th>`).join('')+'</tr>';
+  const head2='<tr class="colfilter">'+OS_COLS.map(c=>{
+    if(c.filter==='text')return `<th><input type="text" data-k="${c.key}" placeholder="搜索…"></th>`;
+    if(c.filter==='select'){
+      let opts;
+      if(c.opts)opts=c.opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
+      else opts=uniq(c.key).map(v=>`<option value="${v}">${v}</option>`).join('');
+      return `<th><select data-k="${c.key}"><option value="">全部</option>${opts}</select></th>`;
+    }
+    return '<th></th>';
+  }).join('')+'</tr>';
+  $('t-os').querySelector('thead').innerHTML=head1+head2;
+  // 绑定筛选事件
+  $('t-os').querySelectorAll('thead .colfilter [data-k]').forEach(el=>{
+    el.oninput=()=>{_osFilter[el.dataset.k]=el.value;drawOS();};
+  });
+  $('of-clear').onclick=()=>{_osFilter={};$('t-os').querySelectorAll('thead .colfilter [data-k]').forEach(el=>el.value='');drawOS();};
+  drawOS();
+}
+let _osRows=[];
+function osMatch(o){
+  for(const k in _osFilter){const fv=(_osFilter[k]||'').trim();if(!fv)continue;
+    if(k==='kind')        {if(o.kind!==fv)return false;}
+    else if(k==='solved') {if(fv==='open'&&o.solved)return false;if(fv==='solved'&&!o.solved)return false;}
+    else if(k==='name'||k==='cls'||k==='owner'){if(String(o[k])!==fv)return false;}
+    else { if(!String(o[k]||'').toLowerCase().includes(fv.toLowerCase()))return false; }
+  }
+  return true;
+}
+function drawOS(){
+  let O=DATA.oslist.filter(osMatch);
+  _osRows=O;
+  const all=DATA.oslist;const open=all.filter(o=>!o.solved).length;
+  const intOpen=all.filter(o=>!o.solved&&o.kind==='internal').length;
+  const extOpen=all.filter(o=>!o.solved&&o.kind==='external').length;
+  kpi([{l:'OS 总数',v:all.length},{l:'未解决',v:open,c:open?'red':'green'},
+    {l:'内部卡点(未解决)',v:intOpen,c:intOpen?'red':'green',sub:'需CSDC解决'},
+    {l:'外部卡点(未解决)',v:extOpen,c:extOpen?'orange':'green',sub:'待项目组/客户'},
+    {l:'涉及项目',v:new Set(all.map(o=>o.name)).size,c:'purple'}],'os-cards');
+  $('of-count').textContent='共 '+O.length+' 项';
+  $('t-os').querySelector('tbody').innerHTML=O.map(o=>`<tr>
+    <td><b>${o.name}</b></td>
+    <td><span class="pill" style="background:${o.kind==='internal'?'var(--red)':'var(--blue)'}">${o.kind==='internal'?'内部':'外部'}</span></td>
+    <td>${o.entity}</td><td>${o.subj}</td>
+    <td style="white-space:normal;max-width:280px">${o.item}</td>
+    <td><span class="pill" style="background:${o.cls.includes('PBC')?'#f5a623':o.cls.includes('issue')?'#e0383e':o.cls.includes('CSDC')?'#8e6fd6':'#4a90d9'}">${o.cls}</span></td>
+    <td>${fmtMs(o.raise)}</td><td>${o.owner}</td>
+    <td>${o.solved?'<span class=under>已解决</span>':'<span class=over>未解决</span>'}</td>
+    <td style="white-space:normal;max-width:200px">${o.note||''}</td></tr>`).join('');
+  if(currentTab==='os')drawOSCharts();
+}
+function drawOSCharts(){
+  const all=DATA.oslist;
+  const intOpen=all.filter(o=>!o.solved&&o.kind==='internal').length;
+  const extOpen=all.filter(o=>!o.solved&&o.kind==='external').length;
+  pie('c-oskind',['内部卡点(CSDC)','外部卡点(项目组/客户)'],[intOpen,extOpen],['#e0383e','#4a90d9'],{valueOnly:true});
+  const byCls={};(_osRows.length?_osRows:all).forEach(o=>byCls[o.cls]=(byCls[o.cls]||0)+1);
+  const ck=Object.keys(byCls);
+  pie('c-oscls',ck,ck.map(k=>byCls[k]),ck.map(k=>k.includes('PBC')?'#f5a623':k.includes('issue')?'#e0383e':k.includes('CSDC')?'#8e6fd6':k.includes('ET')?'#4a90d9':'#999'),{valueOnly:true});
+}
+
+/* ===== 图表（只画当前可见页）===== */
+function renderCharts(tab){
+  if(typeof Chart==='undefined'||!DATA)return;
+  if(tab==='overview'){
+    const P=DATA.projects;
+    // 项目交付状态分布（饼）
+    const first=P.filter(p=>deliveryBucket(p)==='first').length,final=P.filter(p=>deliveryBucket(p)==='final').length,doing=P.length-first-final;
+    pie('c-delivery',['进行中','首次交付','最终交付'],[doing,first,final],['#4a90d9','#7ed957','#2db84d']);
+    // 项目类型分布（饼）
+    const byType={};P.forEach(p=>byType[p.type]=(byType[p.type]||0)+1);
+    const tk=Object.keys(byType);
+    pie('c-type',tk,tk.map(k=>byType[k]),['#2e2e38','#ffe600','#4a90d9','#2db84d','#f5a623','#8e6fd6','#e0383e','#9aa0a6']);
+    // 预算 vs 实际（未超支=绿色，超支=红色）
+    const bp=P.filter(p=>p.budget>0);
+    bar('c-budget',{labels:bp.map(p=>p.name),datasets:[
+      {label:'预算',data:bp.map(p=>p.budget),backgroundColor:'#cfcfd6'},
+      {label:'实际',data:bp.map(p=>p.actual),backgroundColor:bp.map(p=>p.actual>p.budget?'#e0383e':'#2db84d')}]},
+      {indexAxis:'y',maxBarThickness:22,categoryPercentage:0.85,barPercentage:0.95});
+  }else if(tab==='project'){drawProjectCharts();}
+  else if(tab==='staff'){
+    const sel=$('sf-name').value;let S=DATA.staff.slice().sort((a,b)=>b.wp-a.wp);if(sel)S=S.filter(s=>s.owner===sel);
+    bar('c-staff',{labels:S.map(s=>s.owner),datasets:[
+      {label:'已完成',data:S.map(s=>s.done),backgroundColor:'#2db84d',stack:'a'},
+      {label:'进行中',data:S.map(s=>s.started-s.done),backgroundColor:'#4a90d9',stack:'a'},
+      {label:'未开始',data:S.map(s=>s.wp-s.started),backgroundColor:'#e3e3e8',stack:'a'}]},
+      {scales:{x:{stacked:true},y:{stacked:true}}});
+  }else if(tab==='conf'){drawConfChart();}
+  else if(tab==='os'){drawOSCharts();}
+}
+
+/* ===== Chart 封装：固定容器高度 + 关闭动画 + 限制柱宽 ===== */
+function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+const baseOpts={responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:120,plugins:{legend:{position:'bottom'}}};
+function bar(id,data,opts,labelCfg){destroy(id);
+  const maxbt=(opts&&opts.maxBarThickness)||40;
+  (data.datasets||[]).forEach(ds=>{if(ds.maxBarThickness==null)ds.maxBarThickness=maxbt;});
+  if(opts)delete opts.maxBarThickness;
+  const horizontal=opts&&opts.indexAxis==='y';
+  const pad=horizontal?{right:42}:{top:20};
+  const o=Object.assign({categoryPercentage:0.8,barPercentage:0.9,layout:{padding:pad}},baseOpts,opts);
+  o.plugins=Object.assign({},o.plugins,{valueLabel:labelCfg||{}});
+  charts[id]=new Chart($(id),{type:'bar',data,options:o});}
+function pie(id,labels,data,colors,labelCfg){destroy(id);
+  const o=Object.assign({},baseOpts);o.plugins=Object.assign({},o.plugins,{valueLabel:labelCfg||{}});
+  charts[id]=new Chart($(id),{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors}]},options:o});}
+function doubleDonut(id,inner,outer){destroy(id);
+  // Chart.js 中 dataset[0] 为最内圈：内圈=汇总(电子/纸质)，外圈=明细类型
+  // 图例展示明细类型(外圈)，更有信息量
+  charts[id]=new Chart($(id),{type:'doughnut',
+    data:{labels:outer.labels,datasets:[
+      {label:'汇总',data:inner.data,backgroundColor:inner.colors,weight:0.55,_labels:inner.labels},
+      {label:'明细',data:outer.data,backgroundColor:outer.colors,weight:1,_labels:outer.labels}
+    ]},
+    options:Object.assign({},baseOpts,{cutout:'28%',
+      plugins:{valueLabel:{ringLabel:[0],pieFont:10,valueOnly:false},
+        legend:{position:'bottom',labels:{generateLabels:ch=>{
+        return outer.labels.map((lb,i)=>({text:lb,fillStyle:outer.colors[i],strokeStyle:outer.colors[i],index:i}));
+      }}},
+        tooltip:{callbacks:{label:c=>{const ds=c.dataset;const lab=ds._labels?ds._labels[c.dataIndex]:c.label;const tot=ds.data.reduce((a,b)=>a+(+b||0),0);return `${lab}: ${c.parsed} / ${Math.round(c.parsed/tot*100)}%`;}}}}})});}
+function reviewDonut(id,inner,outer){destroy(id);
+  // 内圈=FIC，外圈=EIC；两圈都标数字；图例合并展示四类
+  charts[id]=new Chart($(id),{type:'doughnut',
+    data:{labels:inner.labels.concat(outer.labels),datasets:[
+      {label:'FIC',data:inner.data,backgroundColor:inner.colors,weight:0.7,_labels:inner.labels},
+      {label:'EIC',data:outer.data,backgroundColor:outer.colors,weight:1,_labels:outer.labels}
+    ]},
+    options:Object.assign({},baseOpts,{cutout:'25%',
+      plugins:{valueLabel:{ringLabel:[0,1],pieFont:10,valueOnly:true},
+        legend:{position:'bottom',labels:{generateLabels:()=>{
+        const a=inner.labels.map((lb,i)=>({text:lb,fillStyle:inner.colors[i],strokeStyle:inner.colors[i]}));
+        const b=outer.labels.map((lb,i)=>({text:lb,fillStyle:outer.colors[i],strokeStyle:outer.colors[i]}));
+        return a.concat(b);
+      }}},
+        tooltip:{callbacks:{label:c=>{const ds=c.dataset;const lab=ds._labels?ds._labels[c.dataIndex]:c.label;const tot=ds.data.reduce((a,b)=>a+(+b||0),0);return `${ds.label}·${lab}: ${c.parsed} / ${Math.round(c.parsed/tot*100)}%`;}}}}})});}
+</script>
+</body>
+</html>
