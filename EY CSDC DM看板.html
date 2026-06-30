@@ -209,7 +209,7 @@ body.print-prep .page{display:block!important;}
         <span class="li"><span class="td"></span>今天</span>
       </div>
       <div class="gantt-wrap"><div id="gantt" class="gantt"></div></div>
-      <p class="hint" style="font-size:12px;color:#aaa;margin-top:10px;">说明：表头按「月 / 周」展开（每列为一周，标注周一日期）；每条色条表示该项目从「首次交付时间」到「最终交付时间」的交付窗口，颜色代表当前交付状态；红色竖线及高亮列为本周（今天）。</p>
+      <p class="hint" style="font-size:12px;color:#aaa;margin-top:10px;">说明：表头按「月 / 周」展开（每列为一周，标注周五日期）；每条色条表示该项目从「首次交付时间」到「最终交付时间」的交付窗口，颜色代表当前交付状态；红色竖线及高亮列为本周（今天）。</p>
     </div>
   </div>
 
@@ -218,7 +218,7 @@ body.print-prep .page{display:block!important;}
     <div class="print-title">底稿进度</div>
     <div class="filters">
       <select id="pf-type"><option value="">全部类型</option></select>
-      <select id="pf-status"><option value="">全部状态</option></select>
+      <select id="pf-proj"><option value="">全部项目</option></select>
       <input type="text" id="pf-kw" placeholder="搜索项目…">
       <span style="font-size:12px;color:#999;" id="pf-count"></span>
     </div>
@@ -238,8 +238,7 @@ body.print-prep .page{display:block!important;}
     <div class="print-title">函证进度</div>
     <div class="filters">
       <select id="cf-proj"><option value="">全部项目</option></select>
-      <select id="cf-mode"><option value="">全部</option><option value="unback">仅未收回</option><option value="unsent">仅未发出</option></select>
-      <input type="text" id="cf-kw" placeholder="搜索项目…">
+      <select id="cf-mode"><option value="">全部状态</option><option value="unback">仅未收回</option><option value="unsent">仅未发出</option></select>
       <span style="font-size:12px;color:#999;" id="cf-count"></span>
     </div>
     <div class="cards" id="conf-cards"></div>
@@ -585,7 +584,9 @@ function showTab(t){currentTab=t;
 /* ===== 渲染入口 ===== */
 function renderAll(){renderOverviewCards();renderGantt();renderProject();renderStaff();renderConf();renderOS();}
 function kpi(arr,el){$(el).innerHTML=arr.map(c=>`<div class="card ${c.c||''}"><div class="label">${c.l}</div><div class="value ${c.s?'small':''}">${c.v}</div>${c.sub?`<div class="sub2">${c.sub}</div>`:''}</div>`).join('');}
-function fillSel(id,items){const s=$(id),cur=s.value;s.innerHTML=s.options[0].outerHTML+items.map(i=>`<option>${i}</option>`).join('');s.value=cur;}
+function fillSel(id,items){const s=$(id);if(!s)return;const cur=s.value;s.innerHTML=s.options[0].outerHTML+items.map(i=>`<option>${i}</option>`).join('');s.value=cur;}
+/* 同时绑定 change 与 input，兼容不同浏览器对 <select> 的事件触发差异 */
+function bindFilter(id,fn){const el=$(id);if(!el)return;el.onchange=fn;el.oninput=fn;}
 
 /* ----- 全览 ----- */
 function renderOverviewCards(){
@@ -669,14 +670,14 @@ function renderGantt(){
   const thisMon=mondayOf(todayMs);
   const xOf=t=>{let x=(t-gridStart)/WEEK*COLW; return Math.max(0,Math.min(x,trackW));};
 
-  // 月份分组（连续相同年月的周合并）
+  // 月份分组（连续相同年月的周合并，按该周周五所属月份）
   const groups=[];
-  weeks.forEach(ws=>{const d=new Date(ws);const key=d.getFullYear()+'-'+d.getMonth();const last=groups[groups.length-1];
+  weeks.forEach(ws=>{const d=new Date(ws+4*DAY);const key=d.getFullYear()+'-'+d.getMonth();const last=groups[groups.length-1];
     if(last&&last.key===key)last.n++; else groups.push({key,n:1,m:d.getMonth()+1});});
   const monthRow='<div class="g-monthrow"><div class="g-corner" style="width:'+LABELW+'px"></div>'
     +groups.map(g=>`<div class="g-mcell" style="width:${g.n*COLW}px">${g.m}月</div>`).join('')+'</div>';
   const weekRow='<div class="g-weekrow"><div class="g-corner" style="width:'+LABELW+'px">项目</div>'
-    +weeks.map(ws=>{const d=new Date(ws);const tdy=(ws===thisMon)?' gw-today':'';
+    +weeks.map(ws=>{const d=new Date(ws+4*DAY);const tdy=(ws===thisMon)?' gw-today':'';
         return `<div class="g-wcell${tdy}" style="width:${COLW}px">${d.getMonth()+1}/${d.getDate()}</div>`;}).join('')+'</div>';
 
   // 行
@@ -703,13 +704,13 @@ function renderGantt(){
 let _projRows=[];
 function renderProject(){
   fillSel('pf-type',[...new Set(DATA.projects.map(p=>p.type).filter(Boolean))]);
-  fillSel('pf-status',[...new Set(DATA.projects.map(p=>projStatus(p).t))]);
-  ['pf-type','pf-status','pf-kw'].forEach(id=>$(id).oninput=drawProjectTable);
+  fillSel('pf-proj',[...new Set(DATA.projects.map(p=>p.name).filter(Boolean))]);
+  ['pf-type','pf-proj','pf-kw'].forEach(id=>bindFilter(id,drawProjectTable));
   drawProjectTable();
 }
 function drawProjectTable(){
-  const tp=$('pf-type').value,st=$('pf-status').value,kw=$('pf-kw').value.trim();
-  let rows=DATA.projects.filter(p=>(!tp||p.type===tp)&&(!st||projStatus(p).t===st)&&(!kw||p.name.includes(kw)));
+  const tp=$('pf-type').value,pj=$('pf-proj').value,kw=$('pf-kw').value.trim();
+  let rows=DATA.projects.filter(p=>(!tp||p.type===tp)&&(!pj||p.name===pj)&&(!kw||p.name.includes(kw)));
   rows.sort((a,b)=>rate(a.done,a.wp)-rate(b.done,b.wp));
   _projRows=rows;
   $('pf-count').textContent='共 '+rows.length+' 个项目';
@@ -759,7 +760,11 @@ function drawProjectCharts(){
 
 /* ----- 员工维度 ----- */
 function renderStaff(){
-  if(!$('sf-name').dataset.init){fillSel('sf-name',DATA.staff.map(s=>s.owner).sort());$('sf-name').dataset.init='1';$('sf-name').oninput=()=>{renderStaff();renderCharts('staff');};}
+  if(!$('sf-name').dataset.init){
+    fillSel('sf-name',DATA.staff.map(s=>s.owner).sort());
+    $('sf-name').dataset.init='1';
+    bindFilter('sf-name',()=>{renderStaff();renderCharts('staff');});
+  }
   const sel=$('sf-name').value;
   let S=DATA.staff.slice().sort((a,b)=>b.wp-a.wp);
   if(sel)S=S.filter(s=>s.owner===sel);
@@ -782,14 +787,14 @@ function renderStaff(){
 
 /* ----- 函证 ----- */
 function renderConf(){
-  if(!$('cf-proj').dataset.init){fillSel('cf-proj',[...new Set(DATA.conf.map(c=>c.name).filter(Boolean))]);$('cf-proj').dataset.init='1';}
-  ['cf-kw','cf-mode','cf-proj'].forEach(id=>$(id).oninput=drawConf);
+  fillSel('cf-proj',[...new Set(DATA.conf.map(c=>cfKey(c.name)).filter(Boolean))]);
+  ['cf-mode','cf-proj'].forEach(id=>bindFilter(id,drawConf));
   drawConf();
 }
 let _confRows=[];
 function drawConf(){
-  const kw=$('cf-kw').value.trim(),mode=$('cf-mode').value,pj=$('cf-proj').value;
-  let C=DATA.conf.filter(x=>(!pj||x.name===pj)&&(!kw||(x.name||'').includes(kw))&&(mode!=='unback'||x.unback>0)&&(mode!=='unsent'||x.unsent>0));
+  const mode=$('cf-mode').value,pj=$('cf-proj').value;
+  let C=DATA.conf.filter(x=>(!pj||cfKey(x.name)===pj)&&(mode!=='unback'||x.unback>0)&&(mode!=='unsent'||x.unsent>0));
   _confRows=C;
   const all=DATA.conf;
   const gen=all.reduce((s,x)=>s+x.gen,0),sent=all.reduce((s,x)=>s+x.sent,0),back=all.reduce((s,x)=>s+x.back,0),unback=all.reduce((s,x)=>s+x.unback,0),unsent=all.reduce((s,x)=>s+x.unsent,0);
