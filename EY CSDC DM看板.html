@@ -79,22 +79,25 @@ tr.colfilter select,tr.colfilter input{width:100%;min-width:64px;max-width:160px
 footer{text-align:center;color:#aaa;font-size:12px;padding:18px;}
 .print-title{display:none;}
 /* ===== 进度甘特图 ===== */
-.gantt-wrap{overflow-x:auto;}
-.gantt{min-width:680px;font-size:12px;}
-.gantt-head{display:flex;align-items:flex-end;height:26px;border-bottom:2px solid var(--border);margin-bottom:2px;}
-.gantt-head .glabel,.gantt-row .glabel{flex:0 0 150px;width:150px;padding-right:10px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.gantt-head .gtrack{flex:1;position:relative;height:100%;}
-.gmonth{position:absolute;bottom:2px;transform:translateX(-50%);font-size:11px;color:#888;white-space:nowrap;}
-.gantt-body{position:relative;}
-.gantt-grid{position:absolute;top:0;bottom:0;left:150px;right:0;pointer-events:none;}
-.gantt-grid .gl{position:absolute;top:0;bottom:0;width:1px;background:#f0f0f3;}
-.gantt-grid .gtoday{position:absolute;top:0;bottom:0;width:2px;background:var(--red);opacity:.65;}
-.gantt-row{display:flex;align-items:center;height:30px;border-bottom:1px solid #f5f5f7;position:relative;}
-.gantt-row:hover{background:#fffbe6;}
-.gantt-row .glabel{font-weight:600;}
-.gantt-row .gtrack{flex:1;position:relative;height:100%;}
-.gantt-bar{position:absolute;top:6px;height:18px;border-radius:9px;min-width:4px;box-shadow:0 1px 2px rgba(0,0,0,.12);}
-.gantt-bar .gdates{position:absolute;left:100%;margin-left:6px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:10px;color:#777;}
+/* ===== 甘特图（周进度网格）===== */
+.gantt-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
+.gantt{font-size:12px;display:inline-block;min-width:100%;}
+.g-monthrow,.g-weekrow,.g-row{display:flex;}
+.g-monthrow{background:#2e2e38;color:#fff;}
+.g-mcell{flex:0 0 auto;box-sizing:border-box;text-align:center;font-weight:600;padding:4px 0;border-left:1px solid #4a4a55;font-size:12px;white-space:nowrap;}
+.g-weekrow{background:#3a3a46;color:#cfcfd6;border-bottom:1px solid var(--border);}
+.g-wcell{flex:0 0 auto;box-sizing:border-box;text-align:center;font-size:10px;padding:3px 0;border-left:1px solid #4a4a55;white-space:nowrap;}
+.g-wcell.gw-today{background:var(--red);color:#fff;font-weight:700;}
+.g-corner{flex:0 0 auto;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-weight:600;}
+.g-monthrow .g-corner{background:#2e2e38;}
+.g-body{position:relative;}
+.g-today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--red);opacity:.7;z-index:3;pointer-events:none;}
+.g-row{align-items:center;height:30px;border-bottom:1px solid #f0f0f3;}
+.g-row:hover{background:#fffbe6;}
+.g-rlabel{flex:0 0 auto;box-sizing:border-box;text-align:right;padding-right:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.g-rtrack{position:relative;height:100%;flex:0 0 auto;background-image:linear-gradient(to right,#eef0f3 1px,transparent 1px);background-position:0 0;background-repeat:repeat-x;}
+.gantt-bar{position:absolute;top:6px;height:18px;border-radius:4px;min-width:6px;box-shadow:0 1px 2px rgba(0,0,0,.15);}
+.gantt-bar .gdates{position:absolute;left:100%;margin-left:6px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:10px;color:#999;}
 .gantt-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:#666;align-items:center;}
 .gantt-legend .li{display:inline-flex;align-items:center;gap:5px;}
 .gantt-legend .sw{width:14px;height:10px;border-radius:3px;display:inline-block;}
@@ -140,9 +143,9 @@ body.print-prep .page{display:block!important;}
   tr{break-inside:avoid;page-break-inside:avoid;}
   .alert{break-inside:avoid;}
   /* 甘特图打印优化 */
-  .gantt-wrap{overflow:visible!important;}
-  .gantt{min-width:0;}
-  .gantt-row{break-inside:avoid;page-break-inside:avoid;}
+  .gantt-wrap{overflow:visible!important;border:1px solid #e3e3e8;}
+  .g-row{break-inside:avoid;page-break-inside:avoid;}
+  .g-monthrow,.g-weekrow{break-inside:avoid;}
   @page{size:A4 landscape;margin:8mm;}
 }
 </style>
@@ -163,7 +166,7 @@ body.print-prep .page{display:block!important;}
 
 <div class="tabs" id="tabs" style="display:none;">
   <button data-tab="overview" class="active">全览</button>
-  <button data-tab="gantt">进度甘特图</button>
+  <button data-tab="gantt">甘特图</button>
   <button data-tab="project">底稿进度</button>
   <button data-tab="conf">函证进度</button>
   <button data-tab="os">OS 进度</button>
@@ -193,11 +196,11 @@ body.print-prep .page{display:block!important;}
     </div>
   </div>
 
-  <!-- 进度甘特图 -->
+  <!-- 甘特图 -->
   <div class="page" id="page-gantt">
-    <div class="print-title">进度甘特图</div>
+    <div class="print-title">甘特图</div>
     <div class="panel">
-      <h3>项目交付进度甘特图（按首次交付 → 最终交付时间排布）</h3>
+      <h3>项目交付甘特图（按周排布：首次交付 → 最终交付）</h3>
       <div class="gantt-legend">
         <span class="li"><span class="sw" style="background:#4a90d9"></span>进行中</span>
         <span class="li"><span class="sw" style="background:#7ed957"></span>首次交付</span>
@@ -206,7 +209,7 @@ body.print-prep .page{display:block!important;}
         <span class="li"><span class="td"></span>今天</span>
       </div>
       <div class="gantt-wrap"><div id="gantt" class="gantt"></div></div>
-      <p class="hint" style="font-size:12px;color:#aaa;margin-top:10px;">说明：每条色条表示该项目从「首次交付时间」到「最终交付时间」的交付窗口，颜色代表当前交付状态；红色竖线为今天。条右侧标注首次/最终交付时间。</p>
+      <p class="hint" style="font-size:12px;color:#aaa;margin-top:10px;">说明：表头按「月 / 周」展开（每列为一周，标注周一日期）；每条色条表示该项目从「首次交付时间」到「最终交付时间」的交付窗口，颜色代表当前交付状态；红色竖线及高亮列为本周（今天）。</p>
     </div>
   </div>
 
@@ -642,7 +645,7 @@ function renderOverviewCards(){
   $('ov-alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert ${a.lv}"><span class="tag">${a.tag}</span><b>${a.proj}</b>&nbsp;—&nbsp;${a.msg}</div>`).join(''):'<div style="color:#999;padding:8px;">暂无预警 🎉</div>';
 }
 
-/* ----- 进度甘特图 ----- */
+/* ----- 甘特图（按周排布）----- */
 function renderGantt(){
   const host=$('gantt'); if(!host||!DATA)return;
   // 取有交付时间的项目；缺一端则以另一端补齐
@@ -653,34 +656,47 @@ function renderGantt(){
   if(!P.length){host.innerHTML='<div class="empty" style="padding:30px">暂无交付时间数据</div>';return;}
   // 按首次交付时间、其次最终交付时间排布
   P.sort((a,b)=>a._s-b._s||a._e-b._e);
+
+  const DAY=864e5, WEEK=7*DAY, LABELW=150, COLW=38;
   const todayMs=TODAY.getTime();
-  let min=Math.min(todayMs,...P.map(p=>p._s)), max=Math.max(todayMs,...P.map(p=>p._e));
-  const pad=Math.max((max-min)*0.04, 2*86400000); min-=pad; max+=pad;
-  const span=(max-min)||1;
-  const pos=t=>((t-min)/span*100);
-  // 月份刻度
-  const ticks=[]; const d=new Date(min); d.setDate(1); d.setHours(0,0,0,0);
-  if(d.getTime()<min)d.setMonth(d.getMonth()+1);
-  let guard=0; while(d.getTime()<=max&&guard<60){ticks.push(d.getTime());d.setMonth(d.getMonth()+1);guard++;}
-  const monthLbl=ms=>{const x=new Date(ms);const m=x.getMonth()+1;return m===1?(x.getFullYear()+'/'+m):(m+'月');};
-  const axis=ticks.map(t=>`<div class="gmonth" style="left:${pos(t).toFixed(2)}%">${monthLbl(t)}</div>`).join('');
-  const grid=ticks.map(t=>`<div class="gl" style="left:${pos(t).toFixed(2)}%"></div>`).join('')
-    +`<div class="gtoday" style="left:${pos(todayMs).toFixed(2)}%" title="今天 ${fmtMs(todayMs)}"></div>`;
+  const mondayOf=ms=>{const d=new Date(ms);d.setHours(0,0,0,0);const off=(d.getDay()+6)%7;d.setDate(d.getDate()-off);return d.getTime();};
+  let rawMin=Math.min(todayMs,...P.map(p=>p._s)), rawMax=Math.max(todayMs,...P.map(p=>p._e));
+  const gridStart=mondayOf(rawMin-2*DAY);
+  const weeks=[]; let w=gridStart; const cap=rawMax+2*DAY;
+  while(w<=cap && weeks.length<160){weeks.push(w); w+=WEEK;}
+  weeks.push(weeks[weeks.length-1]+WEEK); // 末尾补一周，确保覆盖最后的交付日
+  const trackW=weeks.length*COLW;
+  const thisMon=mondayOf(todayMs);
+  const xOf=t=>{let x=(t-gridStart)/WEEK*COLW; return Math.max(0,Math.min(x,trackW));};
+
+  // 月份分组（连续相同年月的周合并）
+  const groups=[];
+  weeks.forEach(ws=>{const d=new Date(ws);const key=d.getFullYear()+'-'+d.getMonth();const last=groups[groups.length-1];
+    if(last&&last.key===key)last.n++; else groups.push({key,n:1,m:d.getMonth()+1});});
+  const monthRow='<div class="g-monthrow"><div class="g-corner" style="width:'+LABELW+'px"></div>'
+    +groups.map(g=>`<div class="g-mcell" style="width:${g.n*COLW}px">${g.m}月</div>`).join('')+'</div>';
+  const weekRow='<div class="g-weekrow"><div class="g-corner" style="width:'+LABELW+'px">项目</div>'
+    +weeks.map(ws=>{const d=new Date(ws);const tdy=(ws===thisMon)?' gw-today':'';
+        return `<div class="g-wcell${tdy}" style="width:${COLW}px">${d.getMonth()+1}/${d.getDate()}</div>`;}).join('')+'</div>';
+
+  // 行
   const rows=P.map(p=>{
     const st=projStatus(p);
-    const left=pos(p._s), width=Math.max(pos(p._e)-pos(p._s),0.6);
+    const l=xOf(p._s), bw=Math.max(xOf(p._e)-xOf(p._s),6);
     const dtxt=(p.ddl1?('首交 '+fmtMs(p.ddl1)):'')+(p.ddl1&&p.ddl2?' → ':'')+(p.ddl2?('终交 '+fmtMs(p.ddl2)):'');
     const tip=`${p.name}\n状态：${st.t}\n${dtxt}\n完成 ${p.done}/${p.wp}（${rate(p.done,p.wp)}%）`;
-    return `<div class="gantt-row">
-      <div class="glabel" title="${p.name}">${p.name}</div>
-      <div class="gtrack">
-        <div class="gantt-bar" title="${tip}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${st.c}">
+    return `<div class="g-row">
+      <div class="g-rlabel" style="width:${LABELW}px" title="${p.name}">${p.name}</div>
+      <div class="g-rtrack" style="width:${trackW}px;background-size:${COLW}px 100%">
+        <div class="gantt-bar" title="${tip}" style="left:${l.toFixed(1)}px;width:${bw.toFixed(1)}px;background:${st.c}">
           <span class="gdates">${dtxt}</span>
         </div>
       </div></div>`;
   }).join('');
-  host.innerHTML=`<div class="gantt-head"><div class="glabel"></div><div class="gtrack">${axis}</div></div>`
-    +`<div class="gantt-body"><div class="gantt-grid">${grid}</div>${rows}</div>`;
+
+  const todayLeft=(LABELW+xOf(todayMs)).toFixed(1);
+  host.innerHTML=monthRow+weekRow
+    +`<div class="g-body"><div class="g-today-line" style="left:${todayLeft}px" title="今天 ${fmtMs(todayMs)}"></div>${rows}</div>`;
 }
 
 /* ----- 项目维度 ----- */
