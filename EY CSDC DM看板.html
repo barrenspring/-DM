@@ -78,20 +78,73 @@ tr.colfilter select,tr.colfilter input{width:100%;min-width:64px;max-width:160px
 .empty{padding:70px;text-align:center;color:#999;}
 footer{text-align:center;color:#aaa;font-size:12px;padding:18px;}
 .print-title{display:none;}
+/* ===== 进度甘特图 ===== */
+/* ===== 甘特图（周进度网格）===== */
+.gantt-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
+.gantt{font-size:12px;display:inline-block;min-width:100%;}
+.g-monthrow,.g-weekrow,.g-row{display:flex;}
+.g-monthrow{background:#2e2e38;color:#fff;}
+.g-mcell{flex:0 0 auto;box-sizing:border-box;text-align:center;font-weight:600;padding:4px 0;border-left:1px solid #4a4a55;font-size:12px;white-space:nowrap;}
+.g-weekrow{background:#3a3a46;color:#cfcfd6;border-bottom:1px solid var(--border);}
+.g-wcell{flex:0 0 auto;box-sizing:border-box;text-align:center;font-size:10px;padding:3px 0;border-left:1px solid #4a4a55;white-space:nowrap;}
+.g-wcell.gw-today{background:var(--red);color:#fff;font-weight:700;}
+.g-corner{flex:0 0 auto;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-weight:600;}
+.g-monthrow .g-corner{background:#2e2e38;}
+.g-body{position:relative;}
+.g-today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--red);opacity:.7;z-index:3;pointer-events:none;}
+.g-row{align-items:center;height:30px;border-bottom:1px solid #f0f0f3;}
+.g-row:hover{background:#fffbe6;}
+.g-rlabel{flex:0 0 auto;box-sizing:border-box;text-align:right;padding-right:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.g-rtrack{position:relative;height:100%;flex:0 0 auto;background-image:linear-gradient(to right,#eef0f3 1px,transparent 1px);background-position:0 0;background-repeat:repeat-x;}
+.gantt-bar{position:absolute;top:6px;height:18px;border-radius:4px;min-width:6px;box-shadow:0 1px 2px rgba(0,0,0,.15);}
+.gantt-bar .gdates{position:absolute;left:100%;margin-left:6px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:10px;color:#999;}
+.gantt-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:#666;align-items:center;}
+.gantt-legend .li{display:inline-flex;align-items:center;gap:5px;}
+.gantt-legend .sw{width:14px;height:10px;border-radius:3px;display:inline-block;}
+.gantt-legend .td{width:3px;height:14px;background:var(--red);display:inline-block;border-radius:1px;}
 /* 导出全部时，屏幕上临时把所有页都铺开（用于让图表 canvas 拿到尺寸后再打印）*/
 body.print-prep .page{display:block!important;}
+
 @media print{
-  .toolbar,.tabs,#banner,.filters,footer,.hint{display:none!important;}
-  header{background:#fff;color:#000;border-bottom:2px solid var(--ey-yellow);}
-  header .sub{color:#666;}
-  body{background:#fff;}
+  /* 让背景色/状态色/进度条/甘特图等在 PDF 中正常着色 */
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  .toolbar,.tabs,#banner,.filters,footer,.hint,#emptyState{display:none!important;}
+  header{background:var(--ey-black)!important;color:#fff!important;padding:8px 14px;}
+  header .logo{background:var(--ey-yellow)!important;color:var(--ey-black)!important;}
+  header h1{font-size:15px;}
+  header .sub{color:#cfcfd6!important;}
+  html,body{background:#fff!important;}
+  .wrap{max-width:none;margin:0;padding:6px 0 0;}
   /* 默认（仅打印当前页）*/
-  .page{display:none!important;}.page.active{display:block!important;}
-  /* 一次性导出全部 5 个维度 */
-  body.print-prep .page{display:block!important;page-break-before:always;}
-  body.print-prep .page:first-child{page-break-before:avoid;}
-  body.print-prep .print-title{display:block;font-size:18px;font-weight:700;margin:0 0 12px;padding-bottom:6px;border-bottom:2px solid var(--ey-yellow);}
-  .card,.chart-box,.panel,.table-box{box-shadow:none;border:1px solid #eee;break-inside:avoid;}
+  .page{display:none!important;}
+  .page.active{display:block!important;}
+  /* 一次性导出全部维度：每个维度另起一页 */
+  body.print-prep .page{display:block!important;break-before:page;page-break-before:always;}
+  body.print-prep #page-overview{break-before:avoid;page-break-before:avoid;}
+  body.print-prep .print-title{display:block;font-size:16px;font-weight:700;margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid var(--ey-yellow);}
+  /* 卡片 / 图表 / 面板：不被分页切断 */
+  .card,.chart-box,.panel{box-shadow:none!important;border:1px solid #e3e3e8;break-inside:avoid;page-break-inside:avoid;}
+  .cards{gap:8px;margin-bottom:12px;}
+  .card{padding:8px 10px;}
+  .card .value{font-size:17px;}.card .value.small{font-size:13px;}
+  .charts{gap:10px;margin-bottom:12px;}
+  .chart-box{padding:10px;}
+  .chart-box h3,.panel h3{font-size:12px;margin-bottom:6px;}
+  /* 图表容器：打印时改为自适应高度，由图片快照决定高度，避免 canvas 溢出压住下方内容 */
+  .cc,.cc.sm,.cc.tall{height:auto!important;min-height:0!important;overflow:hidden;}
+  canvas{max-width:100%!important;height:auto!important;}
+  .chart-print-img{display:block;width:100%;height:auto;}
+  /* 表格：允许跨页流动，但不切断单行；表头每页重复 */
+  .table-box{box-shadow:none!important;border:1px solid #e3e3e8;overflow:visible!important;break-inside:auto;}
+  table{font-size:10px;width:100%;}
+  th,td{padding:4px 6px;}
+  thead{display:table-header-group;}
+  tr{break-inside:avoid;page-break-inside:avoid;}
+  .alert{break-inside:avoid;}
+  /* 甘特图打印优化 */
+  .gantt-wrap{overflow:visible!important;border:1px solid #e3e3e8;}
+  .g-row{break-inside:avoid;page-break-inside:avoid;}
+  .g-monthrow,.g-weekrow{break-inside:avoid;}
   @page{size:A4 landscape;margin:8mm;}
 }
 </style>
@@ -112,6 +165,7 @@ body.print-prep .page{display:block!important;}
 
 <div class="tabs" id="tabs" style="display:none;">
   <button data-tab="overview" class="active">全览</button>
+  <button data-tab="gantt">甘特图</button>
   <button data-tab="project">底稿进度</button>
   <button data-tab="conf">函证进度</button>
   <button data-tab="os">OS 进度</button>
@@ -141,13 +195,30 @@ body.print-prep .page{display:block!important;}
     </div>
   </div>
 
+  <!-- 甘特图 -->
+  <div class="page" id="page-gantt">
+    <div class="print-title">甘特图</div>
+    <div class="panel">
+      <h3>项目交付甘特图（按周排布：首次交付 → 最终交付）</h3>
+      <div class="gantt-legend">
+        <span class="li"><span class="sw" style="background:#4a90d9"></span>进行中</span>
+        <span class="li"><span class="sw" style="background:#7ed957"></span>首次交付</span>
+        <span class="li"><span class="sw" style="background:#2db84d"></span>最终交付</span>
+        <span class="li"><span class="sw" style="background:#999"></span>未开始</span>
+        <span class="li"><span class="td"></span>今天</span>
+      </div>
+      <div class="gantt-wrap"><div id="gantt" class="gantt"></div></div>
+      <p class="hint" style="font-size:12px;color:#aaa;margin-top:10px;">说明：表头按「月 / 周」展开（每列为一周，标注周五日期）；每条色条表示该项目从「首次交付时间」到「最终交付时间」的交付窗口，颜色代表当前交付状态；红色竖线及高亮列为本周（今天）。</p>
+    </div>
+  </div>
+
   <!-- 底稿进度（原项目维度）-->
   <div class="page" id="page-project">
     <div class="print-title">底稿进度</div>
     <div class="filters">
       <select id="pf-type"><option value="">全部类型</option></select>
+      <select id="pf-proj"><option value="">全部项目</option></select>
       <select id="pf-status"><option value="">全部状态</option></select>
-      <input type="text" id="pf-kw" placeholder="搜索项目…">
       <span style="font-size:12px;color:#999;" id="pf-count"></span>
     </div>
     <div class="charts">
@@ -166,8 +237,7 @@ body.print-prep .page{display:block!important;}
     <div class="print-title">函证进度</div>
     <div class="filters">
       <select id="cf-proj"><option value="">全部项目</option></select>
-      <select id="cf-mode"><option value="">全部</option><option value="unback">仅未收回</option><option value="unsent">仅未发出</option></select>
-      <input type="text" id="cf-kw" placeholder="搜索项目…">
+      <select id="cf-mode"><option value="">全部状态</option><option value="unback">仅未收回</option><option value="unsent">仅未发出</option></select>
       <span style="font-size:12px;color:#999;" id="cf-count"></span>
     </div>
     <div class="cards" id="conf-cards"></div>
@@ -339,19 +409,67 @@ $('pickBtn').onclick=pickFile;
 $('pdfBtn').onclick=exportAllPDF;
 function exportAllPDF(){
   if(!DATA){window.print();return;}
-  const tabs=['overview','project','conf','os','staff'];
+  const tabs=['overview','gantt','project','conf','os','staff'];
   // 1) 让所有页都可见，使每个 canvas 拿到真实尺寸
   document.body.classList.add('print-prep');
   // 2) 渲染每个维度的图表
   tabs.forEach(t=>renderCharts(t));
-  // 3) 等图表绘制完成后打印，结束后恢复
+  renderGantt();
+  // 3) 等图表绘制完成后：转成图片→等图片解码完成→再打印，避免图表（尤其环形/饼图）打印为空白
   setTimeout(()=>{
-    window.print();
-    document.body.classList.remove('print-prep');
-    // 恢复为只显示当前页 + 重绘当前页图表，避免隐藏页里残留尺寸异常
-    renderCharts(currentTab);
-  },400);
+    snapshotCharts().then(()=>{
+      let restored=false;
+      const done=()=>{ if(restored)return; restored=true;
+        restoreCharts();
+        document.body.classList.remove('print-prep');
+        renderCharts(currentTab);
+        window.removeEventListener('afterprint',done);
+      };
+      window.addEventListener('afterprint',done);
+      window.print();
+      // 兜底：个别浏览器不触发 afterprint 时，延时恢复
+      setTimeout(done,5000);
+    });
+  },600);
 }
+/* 把所有图表 canvas 临时替换为等比图片（按容器宽度自适应高度），打印更稳定 */
+let _chartSnaps=[];
+function snapshotCharts(){
+  restoreCharts();
+  const waits=[];
+  Object.keys(charts).forEach(id=>{
+    const ch=charts[id]; if(!ch)return;
+    const cv=document.getElementById(id); if(!cv||!cv.parentNode)return;
+    let url; try{url=ch.toBase64Image('image/png',1);}catch(e){return;}
+    const img=document.createElement('img');
+    img.className='chart-print-img';
+    // 用 canvas 像素比固定宽高比：图片尚未解码时也能占住高度，避免容器塌缩
+    const w=cv.width||cv.clientWidth||4, h=cv.height||cv.clientHeight||3;
+    img.style.aspectRatio=w+' / '+h;
+    // 等待图片解码完成，确保打印时已经渲染好（否则较大的环形图/饼图会打印成空白）
+    waits.push(new Promise(res=>{
+      let done=false; const fin=()=>{ if(done)return; done=true; res(); };
+      img.onload=()=>{ if(img.decode){img.decode().then(fin,fin);}else{fin();} };
+      img.onerror=fin;
+      setTimeout(fin,2000); // 兜底，避免极端情况下一直等待
+    }));
+    img.src=url;
+    cv.style.display='none';
+    cv.parentNode.insertBefore(img,cv);
+    _chartSnaps.push({cv,img});
+  });
+  // 再留一点排版时间
+  return Promise.all(waits).then(()=>new Promise(r=>setTimeout(r,150)));
+}
+function restoreCharts(){
+  _chartSnaps.forEach(({cv,img})=>{ if(img&&img.parentNode)img.parentNode.removeChild(img); if(cv)cv.style.display=''; });
+  _chartSnaps=[];
+}
+/* 浏览器原生打印（Ctrl+P）时同步图表尺寸（导出全部时走图片快照，不在此重排）*/
+window.addEventListener('beforeprint',()=>{
+  if(document.body.classList.contains('print-prep'))return;
+  try{Object.values(charts).forEach(c=>c&&c.resize());}catch(e){}
+});
 $('legacyInput').onchange=async()=>{const f=$('legacyInput').files[0];if(!f)return;try{parse(await f.arrayBuffer());mark();after();}catch(e){banner('err','❌ 读取失败：'+e.message);}};
 async function pickFile(){
   hideBanner(); if(typeof XLSX==='undefined'){banner('err','❌ Excel解析库未加载，无法读取。');return;}
@@ -506,9 +624,11 @@ function showTab(t){currentTab=t;
 }
 
 /* ===== 渲染入口 ===== */
-function renderAll(){renderOverviewCards();renderProject();renderStaff();renderConf();renderOS();}
+function renderAll(){renderOverviewCards();renderGantt();renderProject();renderStaff();renderConf();renderOS();}
 function kpi(arr,el){$(el).innerHTML=arr.map(c=>`<div class="card ${c.c||''}"><div class="label">${c.l}</div><div class="value ${c.s?'small':''}">${c.v}</div>${c.sub?`<div class="sub2">${c.sub}</div>`:''}</div>`).join('');}
-function fillSel(id,items){const s=$(id),cur=s.value;s.innerHTML=s.options[0].outerHTML+items.map(i=>`<option>${i}</option>`).join('');s.value=cur;}
+function fillSel(id,items){const s=$(id);if(!s)return;const cur=s.value;s.innerHTML=s.options[0].outerHTML+items.map(i=>`<option>${i}</option>`).join('');s.value=cur;}
+/* 同时绑定 change 与 input，兼容不同浏览器对 <select> 的事件触发差异 */
+function bindFilter(id,fn){const el=$(id);if(!el)return;el.onchange=fn;el.oninput=fn;}
 
 /* ----- 全览 ----- */
 function renderOverviewCards(){
@@ -568,17 +688,72 @@ function renderOverviewCards(){
   $('ov-alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert ${a.lv}"><span class="tag">${a.tag}</span><b>${a.proj}</b>&nbsp;—&nbsp;${a.msg}</div>`).join(''):'<div style="color:#999;padding:8px;">暂无预警 🎉</div>';
 }
 
+/* ----- 甘特图（按周排布）----- */
+function renderGantt(){
+  const host=$('gantt'); if(!host||!DATA)return;
+  // 取有交付时间的项目；缺一端则以另一端补齐
+  const P=DATA.projects.filter(p=>p.ddl1||p.ddl2).map(p=>{
+    const s=p.ddl1||p.ddl2, e=p.ddl2||p.ddl1;
+    return Object.assign({},p,{_s:Math.min(s,e),_e:Math.max(s,e)});
+  });
+  if(!P.length){host.innerHTML='<div class="empty" style="padding:30px">暂无交付时间数据</div>';return;}
+  // 按首次交付时间、其次最终交付时间排布
+  P.sort((a,b)=>a._s-b._s||a._e-b._e);
+
+  const DAY=864e5, WEEK=7*DAY, LABELW=150, COLW=38;
+  const todayMs=TODAY.getTime();
+  const mondayOf=ms=>{const d=new Date(ms);d.setHours(0,0,0,0);const off=(d.getDay()+6)%7;d.setDate(d.getDate()-off);return d.getTime();};
+  let rawMin=Math.min(todayMs,...P.map(p=>p._s)), rawMax=Math.max(todayMs,...P.map(p=>p._e));
+  const gridStart=mondayOf(rawMin-2*DAY);
+  const weeks=[]; let w=gridStart; const cap=rawMax+2*DAY;
+  while(w<=cap && weeks.length<160){weeks.push(w); w+=WEEK;}
+  weeks.push(weeks[weeks.length-1]+WEEK); // 末尾补一周，确保覆盖最后的交付日
+  const trackW=weeks.length*COLW;
+  const thisMon=mondayOf(todayMs);
+  const xOf=t=>{let x=(t-gridStart)/WEEK*COLW; return Math.max(0,Math.min(x,trackW));};
+
+  // 月份分组（连续相同年月的周合并，按该周周五所属月份）
+  const groups=[];
+  weeks.forEach(ws=>{const d=new Date(ws+4*DAY);const key=d.getFullYear()+'-'+d.getMonth();const last=groups[groups.length-1];
+    if(last&&last.key===key)last.n++; else groups.push({key,n:1,m:d.getMonth()+1});});
+  const monthRow='<div class="g-monthrow"><div class="g-corner" style="width:'+LABELW+'px"></div>'
+    +groups.map(g=>`<div class="g-mcell" style="width:${g.n*COLW}px">${g.m}月</div>`).join('')+'</div>';
+  const weekRow='<div class="g-weekrow"><div class="g-corner" style="width:'+LABELW+'px">项目</div>'
+    +weeks.map(ws=>{const d=new Date(ws+4*DAY);const tdy=(ws===thisMon)?' gw-today':'';
+        return `<div class="g-wcell${tdy}" style="width:${COLW}px">${d.getMonth()+1}/${d.getDate()}</div>`;}).join('')+'</div>';
+
+  // 行
+  const rows=P.map(p=>{
+    const st=projStatus(p);
+    const l=xOf(p._s), bw=Math.max(xOf(p._e)-xOf(p._s),6);
+    const dtxt=(p.ddl1?('首交 '+fmtMs(p.ddl1)):'')+(p.ddl1&&p.ddl2?' → ':'')+(p.ddl2?('终交 '+fmtMs(p.ddl2)):'');
+    const tip=`${p.name}\n状态：${st.t}\n${dtxt}\n完成 ${p.done}/${p.wp}（${rate(p.done,p.wp)}%）`;
+    return `<div class="g-row">
+      <div class="g-rlabel" style="width:${LABELW}px" title="${p.name}">${p.name}</div>
+      <div class="g-rtrack" style="width:${trackW}px;background-size:${COLW}px 100%">
+        <div class="gantt-bar" title="${tip}" style="left:${l.toFixed(1)}px;width:${bw.toFixed(1)}px;background:${st.c}">
+          <span class="gdates">${dtxt}</span>
+        </div>
+      </div></div>`;
+  }).join('');
+
+  const todayLeft=(LABELW+xOf(todayMs)).toFixed(1);
+  host.innerHTML=monthRow+weekRow
+    +`<div class="g-body"><div class="g-today-line" style="left:${todayLeft}px" title="今天 ${fmtMs(todayMs)}"></div>${rows}</div>`;
+}
+
 /* ----- 项目维度 ----- */
 let _projRows=[];
 function renderProject(){
   fillSel('pf-type',[...new Set(DATA.projects.map(p=>p.type).filter(Boolean))]);
+  fillSel('pf-proj',[...new Set(DATA.projects.map(p=>p.name).filter(Boolean))]);
   fillSel('pf-status',[...new Set(DATA.projects.map(p=>projStatus(p).t))]);
-  ['pf-type','pf-status','pf-kw'].forEach(id=>$(id).oninput=drawProjectTable);
+  ['pf-type','pf-proj','pf-status'].forEach(id=>bindFilter(id,drawProjectTable));
   drawProjectTable();
 }
 function drawProjectTable(){
-  const tp=$('pf-type').value,st=$('pf-status').value,kw=$('pf-kw').value.trim();
-  let rows=DATA.projects.filter(p=>(!tp||p.type===tp)&&(!st||projStatus(p).t===st)&&(!kw||p.name.includes(kw)));
+  const tp=$('pf-type').value,pj=$('pf-proj').value,st=$('pf-status').value;
+  let rows=DATA.projects.filter(p=>(!tp||p.type===tp)&&(!pj||p.name===pj)&&(!st||projStatus(p).t===st));
   rows.sort((a,b)=>rate(a.done,a.wp)-rate(b.done,b.wp));
   _projRows=rows;
   $('pf-count').textContent='共 '+rows.length+' 个项目';
@@ -628,7 +803,8 @@ function drawProjectCharts(){
 
 /* ----- 员工维度 ----- */
 function renderStaff(){
-  if(!$('sf-name').dataset.init){fillSel('sf-name',DATA.staff.map(s=>s.owner).sort());$('sf-name').dataset.init='1';$('sf-name').oninput=()=>{renderStaff();renderCharts('staff');};}
+  fillSel('sf-name',DATA.staff.map(s=>s.owner).sort());
+  bindFilter('sf-name',()=>{renderStaff();renderCharts('staff');});
   const sel=$('sf-name').value;
   let S=DATA.staff.slice().sort((a,b)=>b.wp-a.wp);
   if(sel)S=S.filter(s=>s.owner===sel);
@@ -651,14 +827,14 @@ function renderStaff(){
 
 /* ----- 函证 ----- */
 function renderConf(){
-  if(!$('cf-proj').dataset.init){fillSel('cf-proj',[...new Set(DATA.conf.map(c=>c.name).filter(Boolean))]);$('cf-proj').dataset.init='1';}
-  ['cf-kw','cf-mode','cf-proj'].forEach(id=>$(id).oninput=drawConf);
+  fillSel('cf-proj',[...new Set(DATA.conf.map(c=>cfKey(c.name)).filter(Boolean))]);
+  ['cf-mode','cf-proj'].forEach(id=>bindFilter(id,drawConf));
   drawConf();
 }
 let _confRows=[];
 function drawConf(){
-  const kw=$('cf-kw').value.trim(),mode=$('cf-mode').value,pj=$('cf-proj').value;
-  let C=DATA.conf.filter(x=>(!pj||x.name===pj)&&(!kw||(x.name||'').includes(kw))&&(mode!=='unback'||x.unback>0)&&(mode!=='unsent'||x.unsent>0));
+  const mode=$('cf-mode').value,pj=$('cf-proj').value;
+  let C=DATA.conf.filter(x=>(!pj||cfKey(x.name)===pj)&&(mode!=='unback'||x.unback>0)&&(mode!=='unsent'||x.unsent>0));
   _confRows=C;
   const all=DATA.conf;
   const gen=all.reduce((s,x)=>s+x.gen,0),sent=all.reduce((s,x)=>s+x.sent,0),back=all.reduce((s,x)=>s+x.back,0),unback=all.reduce((s,x)=>s+x.unback,0),unsent=all.reduce((s,x)=>s+x.unsent,0);
