@@ -415,36 +415,51 @@ function exportAllPDF(){
   // 2) 渲染每个维度的图表
   tabs.forEach(t=>renderCharts(t));
   renderGantt();
-  // 3) 等图表绘制完成后：把每个图表转为图片再打印，避免 canvas 在打印时溢出容器、压住下方内容
+  // 3) 等图表绘制完成后：转成图片→等图片解码完成→再打印，避免图表（尤其环形/饼图）打印为空白
   setTimeout(()=>{
-    snapshotCharts();
-    let restored=false;
-    const done=()=>{ if(restored)return; restored=true;
-      restoreCharts();
-      document.body.classList.remove('print-prep');
-      renderCharts(currentTab);
-      window.removeEventListener('afterprint',done);
-    };
-    window.addEventListener('afterprint',done);
-    window.print();
-    // 兜底：个别浏览器不触发 afterprint 时，延时恢复
-    setTimeout(done,4000);
+    snapshotCharts().then(()=>{
+      let restored=false;
+      const done=()=>{ if(restored)return; restored=true;
+        restoreCharts();
+        document.body.classList.remove('print-prep');
+        renderCharts(currentTab);
+        window.removeEventListener('afterprint',done);
+      };
+      window.addEventListener('afterprint',done);
+      window.print();
+      // 兜底：个别浏览器不触发 afterprint 时，延时恢复
+      setTimeout(done,5000);
+    });
   },600);
 }
 /* 把所有图表 canvas 临时替换为等比图片（按容器宽度自适应高度），打印更稳定 */
 let _chartSnaps=[];
 function snapshotCharts(){
   restoreCharts();
+  const waits=[];
   Object.keys(charts).forEach(id=>{
     const ch=charts[id]; if(!ch)return;
     const cv=document.getElementById(id); if(!cv||!cv.parentNode)return;
     let url; try{url=ch.toBase64Image('image/png',1);}catch(e){return;}
     const img=document.createElement('img');
-    img.src=url; img.className='chart-print-img';
+    img.className='chart-print-img';
+    // 用 canvas 像素比固定宽高比：图片尚未解码时也能占住高度，避免容器塌缩
+    const w=cv.width||cv.clientWidth||4, h=cv.height||cv.clientHeight||3;
+    img.style.aspectRatio=w+' / '+h;
+    // 等待图片解码完成，确保打印时已经渲染好（否则较大的环形图/饼图会打印成空白）
+    waits.push(new Promise(res=>{
+      let done=false; const fin=()=>{ if(done)return; done=true; res(); };
+      img.onload=()=>{ if(img.decode){img.decode().then(fin,fin);}else{fin();} };
+      img.onerror=fin;
+      setTimeout(fin,2000); // 兜底，避免极端情况下一直等待
+    }));
+    img.src=url;
     cv.style.display='none';
     cv.parentNode.insertBefore(img,cv);
     _chartSnaps.push({cv,img});
   });
+  // 再留一点排版时间
+  return Promise.all(waits).then(()=>new Promise(r=>setTimeout(r,150)));
 }
 function restoreCharts(){
   _chartSnaps.forEach(({cv,img})=>{ if(img&&img.parentNode)img.parentNode.removeChild(img); if(cv)cv.style.display=''; });
