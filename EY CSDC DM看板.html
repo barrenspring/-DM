@@ -113,7 +113,7 @@ body.print-prep .page{display:block!important;}
   header .logo{background:var(--ey-yellow)!important;color:var(--ey-black)!important;}
   header h1{font-size:15px;}
   header .sub{color:#cfcfd6!important;}
-  body{background:#fff;}
+  html,body{background:#fff!important;}
   .wrap{max-width:none;margin:0;padding:6px 0 0;}
   /* 默认（仅打印当前页）*/
   .page{display:none!important;}
@@ -130,14 +130,13 @@ body.print-prep .page{display:block!important;}
   .charts{gap:10px;margin-bottom:12px;}
   .chart-box{padding:10px;}
   .chart-box h3,.panel h3{font-size:12px;margin-bottom:6px;}
-  /* 图表高度收紧，确保整图落在页面内、避免被截断 */
-  .cc{height:220px!important;}
-  .cc.sm{height:190px!important;}
-  .cc.tall{height:260px!important;}
-  canvas{max-width:100%!important;}
+  /* 图表容器：打印时改为自适应高度，由图片快照决定高度，避免 canvas 溢出压住下方内容 */
+  .cc,.cc.sm,.cc.tall{height:auto!important;min-height:0!important;overflow:hidden;}
+  canvas{max-width:100%!important;height:auto!important;}
+  .chart-print-img{display:block;width:100%;height:auto;}
   /* 表格：允许跨页流动，但不切断单行；表头每页重复 */
   .table-box{box-shadow:none!important;border:1px solid #e3e3e8;overflow:visible!important;break-inside:auto;}
-  table{font-size:10px;}
+  table{font-size:10px;width:100%;}
   th,td{padding:4px 6px;}
   thead{display:table-header-group;}
   tr{break-inside:avoid;page-break-inside:avoid;}
@@ -416,18 +415,46 @@ function exportAllPDF(){
   // 2) 渲染每个维度的图表
   tabs.forEach(t=>renderCharts(t));
   renderGantt();
-  // 3) 等图表绘制完成后打印，结束后恢复
+  // 3) 等图表绘制完成后：把每个图表转为图片再打印，避免 canvas 在打印时溢出容器、压住下方内容
   setTimeout(()=>{
-    // 让所有图表按当前（铺开后）容器尺寸重排，避免 PDF 中比例错乱
-    Object.values(charts).forEach(c=>{try{c.resize();}catch(e){}});
+    snapshotCharts();
+    let restored=false;
+    const done=()=>{ if(restored)return; restored=true;
+      restoreCharts();
+      document.body.classList.remove('print-prep');
+      renderCharts(currentTab);
+      window.removeEventListener('afterprint',done);
+    };
+    window.addEventListener('afterprint',done);
     window.print();
-    document.body.classList.remove('print-prep');
-    // 恢复为只显示当前页 + 重绘当前页图表，避免隐藏页里残留尺寸异常
-    renderCharts(currentTab);
-  },450);
+    // 兜底：个别浏览器不触发 afterprint 时，延时恢复
+    setTimeout(done,4000);
+  },600);
 }
-/* 浏览器原生打印（Ctrl+P）时也同步图表尺寸 */
-window.addEventListener('beforeprint',()=>{try{Object.values(charts).forEach(c=>c&&c.resize());}catch(e){}});
+/* 把所有图表 canvas 临时替换为等比图片（按容器宽度自适应高度），打印更稳定 */
+let _chartSnaps=[];
+function snapshotCharts(){
+  restoreCharts();
+  Object.keys(charts).forEach(id=>{
+    const ch=charts[id]; if(!ch)return;
+    const cv=document.getElementById(id); if(!cv||!cv.parentNode)return;
+    let url; try{url=ch.toBase64Image('image/png',1);}catch(e){return;}
+    const img=document.createElement('img');
+    img.src=url; img.className='chart-print-img';
+    cv.style.display='none';
+    cv.parentNode.insertBefore(img,cv);
+    _chartSnaps.push({cv,img});
+  });
+}
+function restoreCharts(){
+  _chartSnaps.forEach(({cv,img})=>{ if(img&&img.parentNode)img.parentNode.removeChild(img); if(cv)cv.style.display=''; });
+  _chartSnaps=[];
+}
+/* 浏览器原生打印（Ctrl+P）时同步图表尺寸（导出全部时走图片快照，不在此重排）*/
+window.addEventListener('beforeprint',()=>{
+  if(document.body.classList.contains('print-prep'))return;
+  try{Object.values(charts).forEach(c=>c&&c.resize());}catch(e){}
+});
 $('legacyInput').onchange=async()=>{const f=$('legacyInput').files[0];if(!f)return;try{parse(await f.arrayBuffer());mark();after();}catch(e){banner('err','❌ 读取失败：'+e.message);}};
 async function pickFile(){
   hideBanner(); if(typeof XLSX==='undefined'){banner('err','❌ Excel解析库未加载，无法读取。');return;}
