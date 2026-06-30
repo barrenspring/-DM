@@ -219,7 +219,7 @@ body.print-prep .page{display:block!important;}
     <div class="filters">
       <select id="pf-type"><option value="">全部类型</option></select>
       <select id="pf-proj"><option value="">全部项目</option></select>
-      <input type="text" id="pf-kw" placeholder="搜索项目…">
+      <select id="pf-status"><option value="">全部状态</option></select>
       <span style="font-size:12px;color:#999;" id="pf-count"></span>
     </div>
     <div class="charts">
@@ -705,12 +705,13 @@ let _projRows=[];
 function renderProject(){
   fillSel('pf-type',[...new Set(DATA.projects.map(p=>p.type).filter(Boolean))]);
   fillSel('pf-proj',[...new Set(DATA.projects.map(p=>p.name).filter(Boolean))]);
-  ['pf-type','pf-proj','pf-kw'].forEach(id=>bindFilter(id,drawProjectTable));
+  fillSel('pf-status',[...new Set(DATA.projects.map(p=>projStatus(p).t))]);
+  ['pf-type','pf-proj','pf-status'].forEach(id=>bindFilter(id,drawProjectTable));
   drawProjectTable();
 }
 function drawProjectTable(){
-  const tp=$('pf-type').value,pj=$('pf-proj').value,kw=$('pf-kw').value.trim();
-  let rows=DATA.projects.filter(p=>(!tp||p.type===tp)&&(!pj||p.name===pj)&&(!kw||p.name.includes(kw)));
+  const tp=$('pf-type').value,pj=$('pf-proj').value,st=$('pf-status').value;
+  let rows=DATA.projects.filter(p=>(!tp||p.type===tp)&&(!pj||p.name===pj)&&(!st||projStatus(p).t===st));
   rows.sort((a,b)=>rate(a.done,a.wp)-rate(b.done,b.wp));
   _projRows=rows;
   $('pf-count').textContent='共 '+rows.length+' 个项目';
@@ -760,11 +761,8 @@ function drawProjectCharts(){
 
 /* ----- 员工维度 ----- */
 function renderStaff(){
-  if(!$('sf-name').dataset.init){
-    fillSel('sf-name',DATA.staff.map(s=>s.owner).sort());
-    $('sf-name').dataset.init='1';
-    bindFilter('sf-name',()=>{renderStaff();renderCharts('staff');});
-  }
+  fillSel('sf-name',DATA.staff.map(s=>s.owner).sort());
+  bindFilter('sf-name',()=>{renderStaff();renderCharts('staff');});
   const sel=$('sf-name').value;
   let S=DATA.staff.slice().sort((a,b)=>b.wp-a.wp);
   if(sel)S=S.filter(s=>s.owner===sel);
